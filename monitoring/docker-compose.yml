@@ -6,7 +6,6 @@ services:
       - "4000:4000"
     networks:
       - network
-      - snak_default
     volumes:
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
       - grafana-storage:/var/lib/grafana
@@ -24,7 +23,6 @@ services:
       - "9090:9090"
     networks:
       - network
-      - snak_default
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./prometheus/rules:/etc/prometheus/rules/
@@ -43,7 +41,6 @@ services:
       - "9187:9187"
     networks:
       - network
-      - snak_default      
     environment:
       DATA_SOURCE_NAME: >-
         postgresql://admin:admin@postgres:5432/postgres?sslmode=disable
@@ -66,13 +63,12 @@ services:
 
 networks:
   network:
-  snak_default:
-    external: true
+
 
 volumes:
   grafana-storage: {}
-  # prometheus-storage: {}
-  # alertmanager-storage: {}
+  prometheus-storage: {}
+  alertmanager-storage: {}
   # loki-storage: {}
   # node_exporter-storage: {}
   
