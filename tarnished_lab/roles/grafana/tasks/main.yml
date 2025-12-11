@@ -1,0 +1,18 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for grafana
+- block:
+    - name: "Install grafana"
+      include_tasks: install.yml
+
+    - name: "Config grafana"
+      include_tasks: config.yml
+  when: grafana_enabled | bool
+
+- name: "Configure datasource and dashboard"
+  include_tasks: datasource_dashboard.yml
+  when: grafana_datasource | bool
+
+- name: "Remove grafana"
+  include_tasks: remove.yml
+  when: not (grafana_enabled | bool)

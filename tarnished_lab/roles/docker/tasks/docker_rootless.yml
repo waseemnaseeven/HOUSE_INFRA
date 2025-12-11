@@ -1,0 +1,46 @@
+- name: Disable root docker
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - docker.service
+    - docker.socket
+
+- name: Remove docker socket
+  ansible.builtin.file:
+    path: "/var/run/docker.sock"
+    state: absent
+
+- name: Turn on linger for users
+  ansible.builtin.shell:
+    cmd: "loginctl enable-linger {{ item.name }}"
+    creates: "/var/lib/systemd/linger/{{ item.name }}"
+  loop: "{{ docker_rootless_users }}"
+
+- ansible.builtin.getent:
+    database: passwd
+
+- name: Create bin folder
+  become: true
+  become_user: "{{ item.name }}"
+  ansible.builtin.file:
+    path: "{{ getent_passwd[item.name].4 }}/bin"
+    state: directory
+  loop: "{{ docker_rootless_users }}"
+
+- name: Run the rootless docker installer
+  become: true
+  become_user: "{{ item.name }}"
+  ansible.builtin.shell:
+    cmd: dockerd-rootless-setuptool.sh install
+    creates: "/home/{{ item.name }}/.docker/config.json"
+  environment: # needed for systemctl --user (cf machinectl)
+    XDG_RUNTIME_DIR: "/run/user/{{ getent_passwd[item.name].1 }}"
+  loop: "{{ docker_rootless_users }}"
+
+# /usr/bin/dockerd-rootless-setuptool.sh uninstall -f ; /usr/bin/rootlesskit rm -rf $HOME/.local/share/docker
+
+- name: Configure docker
+  ansible.builtin.include_tasks: "docker_rootless_user.yml"
+  loop: "{{ docker_rootless_users }}"

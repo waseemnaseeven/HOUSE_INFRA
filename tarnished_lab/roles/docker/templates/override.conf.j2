@@ -1,0 +1,5 @@
+{% if docker_rootless_port_slirp4netns_enabled %}
+[Service]
+Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns"
+Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER=slirp4netns"
+{% endif %}

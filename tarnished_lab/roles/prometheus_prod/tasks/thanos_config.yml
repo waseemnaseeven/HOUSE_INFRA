@@ -1,0 +1,54 @@
+- name: Deploy thanos sidecar bucket config file
+  ansible.builtin.template:
+    src: thanos_bucket.yml.j2
+    dest: "{{ prometheus_thanos_bucket_file }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0600"
+  notify:
+    - Restart thanos
+
+- name: Deploy thanos http client config file
+  ansible.builtin.template:
+    src: thanos_http_client.yml.j2
+    dest: "{{ prometheus_thanos_http_client_file }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0600"
+  notify:
+    - Restart thanos
+
+- name: Deploy thanos web config file
+  ansible.builtin.template:
+    src: thanos_web_config.yml.j2
+    dest: "{{ prometheus_thanos_tls_config }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0600"
+  notify:
+    - Restart thanos
+
+- name: Deploying the thanos systemd service
+  ansible.builtin.template:
+    src: thanos.service.j2
+    dest: "{{ prometheus_thanos_service_file }}"
+    mode: "0644"
+  register: "_prometheus_thanos_systemd_service"
+  notify:
+    - Restart thanos
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+  when: _prometheus_thanos_systemd_service.changed
+  notify:
+    - Restart thanos
+
+- name: Start thanos
+  ansible.builtin.systemd:
+    name: thanos
+    state: started
+    enabled: true
+  when: _prometheus_thanos_systemd_service.changed
+  notify:
+    - Restart thanos

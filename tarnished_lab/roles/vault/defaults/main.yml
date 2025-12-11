@@ -1,0 +1,60 @@
+# Vault installation
+vault_version: "1.20.3"
+vault_architecture: "arm64"  # For Raspberry Pi (use "amd64" for x86)
+vault_user: "vault"
+vault_group: "vault"
+vault_bin_path: "/usr/local/bin/vault"
+vault_config_dir: "/etc/vault.d"
+vault_data_dir: "/opt/vault/data"
+vault_systemd_unit: "/etc/systemd/system/vault.service"
+
+# Network configuration
+vault_listener_address: "0.0.0.0:8200"
+vault_cluster_address: "0.0.0.0:8201"
+vault_api_addr: "http://{{ ansible_default_ipv4.address }}:8200"
+vault_cluster_addr: "http://{{ ansible_default_ipv4.address }}:8201"
+vault_tls_disable: true  # Set to false if you want HTTPS
+
+# Initialization
+vault_init_file: "{{ vault_config_dir }}/.vault_init"
+vault_unseal_keys_dir: "{{ vault_config_dir }}/keys"
+vault_root_token_file: "{{ vault_config_dir }}/keys/root_token"
+
+# PKI configuration
+vault_pki_enabled: true
+vault_pki_path: "pki"
+vault_pki_int_path: "pki_int"
+vault_pki_ca_common_name: "Tarnished Lab Root CA"
+vault_pki_int_common_name: "Tarnished Lab Intermediate CA"
+vault_pki_max_lease_ttl: "87600h"  # 10 years
+vault_pki_int_max_lease_ttl: "43800h"  # 5 years
+
+# PKI Roles
+vault_pki_roles:
+  - name: "openvpn-server"
+    path: "{{ vault_pki_int_path }}"
+    allowed_domains:
+      - "vpn.tarnished.lab"
+      - "localhost"
+    allow_subdomains: true
+    allow_bare_domains: true
+    allow_ip_sans: true
+    server_flag: true
+    client_flag: false
+    max_ttl: "8760h"  # 1 year
+
+  - name: "openvpn-client"
+    path: "{{ vault_pki_int_path }}"
+    allowed_domains:
+      - "vpn.tarnished.lab"
+    allow_subdomains: true
+    allow_bare_domains: false
+    allow_ip_sans: false
+    server_flag: false
+    client_flag: true
+    max_ttl: "8760h"  # 1 year
+
+# KV configuration
+vault_kv_enabled: true
+vault_kv_path: "secret"
+vault_kv_version: 2

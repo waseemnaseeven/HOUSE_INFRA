@@ -1,0 +1,26 @@
+# List of certificates to issue from Vault PKI
+vault_cert: []
+
+# Example for OpenVPN server certificate:
+# vault_cert:
+#   - issue_path: "pki_int/issue/openvpn-server"
+#     common_name: "vpn.tarnished.lab"
+#     ip_sans: "192.168.1.178"
+#     ttl: "8760h"
+#     base_path: "/etc/openvpn/server"
+#     cert_path: "server.crt"
+#     key_path: "server.key"
+#     ca_chain_path: "ca.crt"
+#     owner: "root"
+#     group: "root"
+#
+# Example for OpenVPN client certificate:
+#   - issue_path: "pki_int/issue/openvpn-client"
+#     common_name: "client1.vpn.tarnished.lab"
+#     ttl: "8760h"
+#     base_path: "/etc/openvpn/client/client1"
+#     cert_path: "client.crt"
+#     key_path: "client.key"
+#     ca_chain_path: "ca.crt"
+#     owner: "root"
+#     group: "root"

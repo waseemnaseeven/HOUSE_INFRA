@@ -1,0 +1,19 @@
+{% if prometheus_thanos_tls_server_enabled %}
+tls_server_config:
+  cert_file: {{ prometheus_thanos_tls_server_cert_file | quote }}
+  key_file: {{ prometheus_thanos_tls_server_key_file | quote }}
+{% if prometheus_thanos_tls_validate_client_enabled %}
+  client_ca_file: {{ prometheus_thanos_ca_clients_file | quote }}
+  client_auth_type: RequireAndVerifyClientCert
+  client_allowed_sans:
+{% for client in prometheus_tls_clients %}
+    - "{{ client }}"
+{% endfor %}
+{% endif %}
+{% endif %}
+{% if prometheus_thanos_basic_auth_users | length > 0 %}
+basic_auth_users:
+{% for user, hash in prometheus_thanos_basic_auth_users.items() %}
+  {{ user }}: {{ hash }}
+{% endfor %}
+{% endif %}

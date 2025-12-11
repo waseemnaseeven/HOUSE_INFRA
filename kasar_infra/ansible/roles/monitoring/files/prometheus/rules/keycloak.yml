@@ -1,0 +1,70 @@
+groups:
+- name: keycloak-alerts
+  rules:
+    # --- Availability ---
+    - alert: KeycloakDown
+      expr: up{job="keycloak"} == 0
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: "Keycloak instance down ({{ $labels.instance }})"
+        description: "Prometheus is not scraping Keycloak.\nVALUE = {{ $value }}\nLABELS = {{ $labels }}"
+
+    # --- Memory ---
+    - alert: KeycloakHighHeapUsage
+      expr: jvm_memory_usage_after_gc_percent{area="heap"} > 0.85
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High heap usage on Keycloak"
+        description: "Heap usage > 85% after GC.\nVALUE = {{ $value }}\nLABELS = {{ $labels }}"
+
+    - alert: KeycloakNearOom
+      expr: base_memory_maxHeap_bytes - base_memory_usedHeap_bytes < 200000000
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Keycloak nearly out of memory"
+        description: "Less than 200MB free in heap.\nVALUE = {{ $value }}"
+
+    # --- Threads ---
+    - alert: KeycloakBlockedThreads
+      expr: jvm_threads_states_threads{state="blocked"} > 10
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Too many blocked threads"
+        description: "More than 10 blocked threads.\nVALUE = {{ $value }}"
+
+    # --- DB Connections ---
+    - alert: KeycloakDatasourceExhaustion
+      expr: agroal_active_count{datasource="default"} > 0.9 * agroal_max_used_count{datasource="default"}
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Keycloak DB pool exhaustion"
+        description: "Active connections close to maximum.\nVALUE = {{ $value }}"
+
+    # --- HTTP Errors ---
+    - alert: KeycloakHttp5xx
+      expr: rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[5m]) > 5
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High rate of 5xx responses from Keycloak"
+        description: "Too many 5xx errors returned.\nVALUE = {{ $value }}"
+
+    - alert: KeycloakHttp4xx
+      expr: rate(http_server_requests_seconds_count{outcome="CLIENT_ERROR"}[5m]) > 20
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High rate of 4xx responses from Keycloak"
+        description: "Too many client-side errors (4xx).\nVALUE = {{ $value }}"

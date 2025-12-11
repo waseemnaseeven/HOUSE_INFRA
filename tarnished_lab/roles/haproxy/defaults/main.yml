@@ -1,0 +1,9 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for haproxy
+haproxy_install_dir: "/etc/haproxy"
+
+
+
+
+

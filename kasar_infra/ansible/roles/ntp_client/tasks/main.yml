@@ -1,0 +1,29 @@
+---
+- name: Remove ntp
+  ansible.builtin.apt:
+    name: ntp
+    state: absent
+
+- name: Install chrony client
+  ansible.builtin.apt:
+    name:
+      - chrony
+      - tzdata
+    state: present
+    update_cache: yes
+
+- name: Set timezone
+  timezone:
+    name: "{{ ntp_timezone }}"
+
+- name: Generate chrony configuration file
+  template:
+    src: "chrony.conf.j2"
+    dest: "/etc/chrony/chrony.conf"
+  notify: restart chrony client
+
+- name: Ensure chrony is running and enabled as configured.
+  service:
+    name: chrony
+    state: started
+    enabled: true

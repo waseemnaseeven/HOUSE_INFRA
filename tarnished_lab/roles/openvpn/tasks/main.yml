@@ -1,0 +1,17 @@
+---
+- name: Include installation tasks
+  ansible.builtin.import_tasks: install.yml
+  tags: install
+
+- name: Include server certificate generation tasks
+  ansible.builtin.import_tasks: server_cert.yml
+  tags: certs
+
+- name: Include server configuration tasks
+  ansible.builtin.import_tasks: configure.yml
+  tags: configure
+
+- name: Include client configuration tasks
+  ansible.builtin.import_tasks: clients.yml
+  tags: clients
+  when: openvpn_clients | length > 0

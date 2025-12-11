@@ -1,0 +1,52 @@
+# Remettre les check mais attention aux noms
+
+- name: Check if service exist
+  ansible.builtin.stat:
+    path: "{{ node_exporter_service_file }}"
+  register: _node_exporter_service_file
+
+- name: Disable service
+  ansible.builtin.systemd_service:
+    state: "stopped"
+    name: node_exporter.service
+    enabled: false
+  when: service_file.stat.exists
+
+- name: Remove service
+  ansible.builtin.file:
+    path: "{{ node_exporter_service_file }}"
+    state: absent
+
+- name: Refresh systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Remove binary
+  ansible.builtin.file:
+    path: "{{ node_exporter_binary }}"
+    state: absent
+
+- name: Remove node_exporter config folder
+  ansible.builtin.file:
+    path: "{{ node_exporter_install_dir }}"
+    state: absent
+
+- name: Remove ssl
+  ansible.builtin.file:
+    path: "{{ item | basename }}"
+    state: absent
+  when: node_exporter_cleanup_ssl_folder
+  loop:
+    - node_exporter_crt_file
+    - node_exporter_key_file
+
+- name: Remove user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    state: absent
+    remove: true
+
+- name: Remove group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    state: absent

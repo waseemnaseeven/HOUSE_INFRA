@@ -1,0 +1,4 @@
+- name: Deploying Vault Server
+  hosts: vault
+  roles:
+    - vault

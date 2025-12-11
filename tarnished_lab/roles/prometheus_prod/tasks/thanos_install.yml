@@ -1,0 +1,72 @@
+---
+- name: Register thanos version
+  ansible.builtin.lineinfile:
+    path: /var/versions
+    regexp: "^thanos="
+    create: true
+    line: "thanos={{ prometheus_thanos_version }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: binary_version
+
+- name: Managing thanos
+  when: binary_version.changed or (prometheus_thanos_force_install | default(false))
+  block:
+    - name: Create temporary build directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: thanos
+      register: tempfolder_thanos
+
+    - name: Download thanos
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "https://github.com/thanos-io/thanos/releases/download/v{{ prometheus_thanos_version }}/thanos-{{ prometheus_thanos_version }}.linux-amd64.tar.gz"
+        dest: "{{ tempfolder_thanos.path }}"
+
+    - name: Copy thanos binary
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ tempfolder_thanos.path }}/thanos-{{ prometheus_thanos_version }}.linux-amd64/thanos"
+        dest: "{{ prometheus_thanos_binary }}"
+        owner: "{{ prometheus_user }}"
+        group: "{{ prometheus_group }}"
+        mode: "0100"
+      notify:
+        - Restart thanos
+
+    - name: Remove temp folder
+      ansible.builtin.file:
+        path: "{{ tempfolder_thanos.path }}"
+        state: absent
+  rescue:
+    - name: "Registering thanos failure"
+      ansible.builtin.lineinfile:
+        path: /var/versions
+        regexp: "^thanos="
+        line: "thanos=failure"
+
+    - name: Remove temp folder
+      ansible.builtin.file:
+        path: "{{ tempfolder_thanos.path }}"
+        state: absent
+
+    - name: Force failure
+      ansible.builtin.fail:
+        msg: "Installation of thanos failed."
+
+- name: Creating config folder
+  ansible.builtin.file:
+    path: "{{ prometheus_thanos_config_dir }}"
+    state: directory
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0700"
+
+- name: Changing the owner of the thanos binary
+  ansible.builtin.file:
+    path: "{{ prometheus_thanos_binary }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0100"

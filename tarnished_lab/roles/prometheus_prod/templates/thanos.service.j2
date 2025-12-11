@@ -1,0 +1,24 @@
+[Unit]
+Description=Thanos Sidecar Version {{ prometheus_thanos_version }}
+Documentation=https://prometheus.io/docs/introduction/overview/
+After=network-online.target
+
+[Service]
+User={{ prometheus_user }}
+Group={{ prometheus_group }}
+Restart=on-failure
+ExecStart={{ prometheus_thanos_binary }} sidecar \
+  --prometheus.url={{ prometheus_thanos_prometheus_endpoint }} \
+  --prometheus.http-client-file={{ prometheus_thanos_http_client_file }} \
+  --tsdb.path={{ prometheus_storage_path }} \
+  --grpc-address=:10901 \
+  --http-address=:10902 \
+  --grpc-server-tls-client-ca={{ prometheus_thanos_ca_clients_file }} \
+  --grpc-server-tls-cert={{ prometheus_thanos_tls_server_cert_file }} \
+  --grpc-server-tls-key={{ prometheus_thanos_tls_server_key_file }} \
+  --objstore.config-file={{ prometheus_thanos_bucket_file }} \
+  --log.level={{ prometheus_thanos_log_level }} \
+  --log.format=json
+
+[Install]
+WantedBy=multi-user.target

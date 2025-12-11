@@ -1,0 +1,11 @@
+region: ${AWS_REGION}
+metrics:
+  - aws_namespace: AWS/Billing
+    aws_metric_name: EstimatedCharges
+    aws_dimensions: [Currency]
+    aws_dimension_select:
+      Currency: [USD]
+    aws_statistics: [Maximum]
+    period_seconds: 7200   # billing updates every 2h
+    range_seconds: 7200
+    delay_seconds: 600

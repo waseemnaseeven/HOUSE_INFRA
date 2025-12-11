@@ -1,0 +1,32 @@
+---
+- name: Verifying cert file exist
+  stat:
+    path: "{{ grafana_cert_file }}"
+  register: _cert_file
+
+- name: Deploy the grafana.ini  
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: "{{ grafana_config_file }}"
+    owner: "{{ grafana_user }}"
+    group: "{{ grafana_group }}"
+    mode: '0644'
+
+- name: Copy ca crt 
+  ansible.builtin.copy:
+    content: "{{ lookup('pipe', 'vault read -field=certificate rd/pki/monitoring/cert/ca') }}"
+    dest: "{{ grafana_ca_file }}"
+    owner: '{{ grafana_user }}'
+    group: '{{ grafana_group }}'
+    mode: '0644'
+
+- name: Launch and activate the systemd service
+  ansible.builtin.systemd_service:
+    name: grafana-server
+    state: restarted
+    enabled: true
+    daemon_reload: true
+    force: false # Override existing symlinks
+  notify:
+    - Restart grafana
+

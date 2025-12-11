@@ -1,0 +1,42 @@
+- name: Manage docker rootless for user {{ item.name }}
+  become: true
+  become_user: "{{ item.name }}"
+  block:
+    - name: Ensure systemd folder exists
+      ansible.builtin.file:
+        path: "{{ getent_passwd[item.name].4 }}/.config/systemd/user/docker.service.d"
+        state: directory
+
+    - name: Configure systemd override
+      ansible.builtin.template:
+        src: override.conf.j2
+        dest: "{{ getent_passwd[item.name].4 }}/.config/systemd/user/docker.service.d/override.conf"
+      register: _docker_rootless_user_systemd_override
+
+    - name: Reload systemctl
+      ansible.builtin.service:
+        daemon_reload: yes
+        scope: user
+      environment: # needed for systemctl --user (cf machinectl)
+        XDG_RUNTIME_DIR: "/run/user/{{ getent_passwd[item.name].1 }}"
+      when: _docker_rootless_user_systemd_override.changed
+
+    - name: Create docker config folder
+      ansible.builtin.file:
+        path: "{{ getent_passwd[item.name].4 }}/.config/docker"
+        state: directory
+
+    - name: Configure docker
+      ansible.builtin.template:
+        src: daemon.json.j2
+        dest: "{{ getent_passwd[item.name].4 }}/.config/docker/daemon.json"
+      register: _docker_rootless_user_config
+
+    - name: Ensure docker is in desired state
+      ansible.builtin.service:
+        name: docker
+        state: "{{ 'restarted' if (_docker_rootless_user_config.changed or _docker_rootless_user_systemd_override.changed) else 'started' }}"
+        enabled: true
+        scope: user
+      environment: # needed for systemctl --user (cf machinectl)
+        XDG_RUNTIME_DIR: "/run/user/{{ getent_passwd[item.name].1 }}"

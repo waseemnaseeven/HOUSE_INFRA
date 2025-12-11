@@ -1,0 +1,48 @@
+# OpenVPN configuration
+openvpn_enabled: true
+openvpn_config_dir: "/etc/openvpn"
+openvpn_server_dir: "{{ openvpn_config_dir }}/server"
+openvpn_client_dir: "{{ openvpn_config_dir }}/client"
+
+# Network configuration
+openvpn_port: 1194
+openvpn_protocol: "udp"  # udp or tcp
+openvpn_server_network: "10.8.0.0"
+openvpn_server_netmask: "255.255.255.0"
+
+# DNS settings (push to clients)
+openvpn_push_dns:
+  - "8.8.8.8"
+  - "8.8.4.4"
+
+# Routes to push to clients
+openvpn_push_routes:
+  - "192.168.1.0 255.255.255.0"
+
+# Server settings
+openvpn_server_common_name: "vpn.tarnished.lab"
+openvpn_keepalive_ping: 10
+openvpn_keepalive_timeout: 120
+openvpn_max_clients: 100
+openvpn_cipher: "AES-256-GCM"
+openvpn_auth: "SHA256"
+
+# Certificate paths (managed by vault_cert role)
+openvpn_ca_cert: "{{ openvpn_server_dir }}/ca.crt"
+openvpn_server_cert: "{{ openvpn_server_dir }}/server.crt"
+openvpn_server_key: "{{ openvpn_server_dir }}/server.key"
+openvpn_dh_params: "{{ openvpn_server_dir }}/dh2048.pem"
+openvpn_ta_key: "{{ openvpn_server_dir }}/ta.key"
+
+# Client configuration
+openvpn_clients: []
+# Example:
+# openvpn_clients:
+#   - name: "client1"
+#     common_name: "client1.vpn.tarnished.lab"
+#   - name: "client2"
+#     common_name: "client2.vpn.tarnished.lab"
+
+# Vault integration
+vault_addr: "http://{{ hostvars['raspberrypi'].ansible_host }}:8200"
+vault_pki_role: "openvpn-client"

@@ -1,0 +1,27 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for haproxy_keepalived
+- name: Ensure HAproxy installed
+  ansible.builtin.apt:
+    name: haproxy
+    state: present
+    update_cache: yes
+
+- name: Deploy haproxy.cfg 
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ haproxy_install_dir }}/haproxy.cfg"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Launch haproxy
+  ansible.builtin.systemd_service:
+    name: haproxy
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+    force: false
+  notify:
+    - Restart haproxy
+

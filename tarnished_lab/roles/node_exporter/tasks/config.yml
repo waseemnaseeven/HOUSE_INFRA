@@ -1,0 +1,49 @@
+---
+- name: Copy ca-cert
+  when: node_exporter_tls_validate_client_enabled
+  ansible.builtin.copy:
+    content: "{{ node_exporter_tls_clients_ca_cert }}"
+    dest: "{{ node_exporter_ca_file }}"
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "0644"
+  notify:
+    - Restart node_exporter
+
+- name: Deploying TLS config file
+  when: node_exporter_tls_server_enabled
+  ansible.builtin.template:
+    src: web_config.yml.j2
+    dest: "{{ node_exporter_web_config }}"
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "0644"
+  notify:
+    - Restart node_exporter
+
+- name: Force failure if validate clients but clients empty
+  ansible.builtin.fail:
+    msg: "node_exporter_tls_validate_client_enabled enabled but node_exporter_tls_clients empty"
+  when: node_exporter_tls_validate_client_enabled and (node_exporter_tls_clients | length) == 0
+
+- name: Deploying the systemd service
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: "{{ node_exporter_service_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: _node_exporter_systemd_template
+  notify:
+    - Restart node_exporter
+
+- name: Daemon reload if service changed
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: _node_exporter_systemd_template.changed
+
+- name: Launch and activate the systemd service
+  ansible.builtin.systemd_service:
+    name: node_exporter.service
+    state: started
+    enabled: true

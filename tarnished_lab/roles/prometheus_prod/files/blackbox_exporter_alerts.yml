@@ -1,0 +1,92 @@
+groups:
+  - name: BLACKBOX
+    rules:
+      - alert: BlackboxJobsDown
+        # Savoir si l'un des service blackbox run
+        expr: up{job=~"blackbox|blackbox_exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} is down"
+          description: "The service {{ $labels.instance }} (job: {{ $labels.job }}) has been down for more than 5 minutes.\n VALUE = {{ $value  }}\n "
+
+      - alert: BlackboxProbeFailed
+        # Alerte sur un echec de sonde
+        expr: probe_success == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox probe failed (instance {{ $labels.instance }})
+          description: "Probe failed\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxConfigurationReloadFailure
+        # Constate si blackbox a crash au nouveau lancement
+        expr: blackbox_exporter_config_last_reload_successful != 1
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Blackbox configuration reload failure (instance {{ $labels.instance }})
+          description: "Blackbox configuration reload failure\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxSlowProbe
+        # Calcule la moyenne de la durée de la sonde pendant la dernière minute, si cette moyenne est > 1 alors la sonde a mis plus d'une seconde a s'exécuter
+        expr: avg_over_time(probe_duration_seconds[1m]) > 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Blackbox slow probe (instance {{ $labels.instance }})
+          description: "Blackbox probe took more than 1s to complete\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxProbeHttpFailure
+        # Verifie echec au niveau du retour code http
+        expr: probe_http_status_code <= 199 OR probe_http_status_code >= 400
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox probe HTTP failure (instance {{ $labels.instance }})
+          description: "HTTP status code is not 200-399\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxSslCertificateWillExpireSoon
+        # La soustraction de last over time et time permet de catch le nb de secondes restantes avant l'expiration du certificat, puis on divise par 86400secs pour convertir les secondes en jours. On recupère la dernière valeur releve par 'probe_ssl' sur une période de 10mins puis on arrondi le résultat au 10ème pres. Cela vérifie que le certificat expirera dans au moins 3 jours mais moins de 20 jours.
+        expr: 3 <= round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Blackbox SSL certificate will expire soon (instance {{ $labels.instance }})
+          description: "SSL certificate expires in less than 20 days\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxSslCertificateWillExpireSoon
+        # Vérifie que le certificat expirera dans moins 3 jours.
+        expr: 0 <= round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 3
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox SSL certificate will expire soon (instance {{ $labels.instance }})
+          description: "SSL certificate expires in less than 3 days\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxProbeSlowHttp
+        # Repere les requetes http qui mettent trop de temps a répondre lors d'un probe, vérifie si la requête a dépassé 1sec
+        expr: avg_over_time(probe_http_duration_seconds[1m]) > 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Blackbox probe slow HTTP (instance {{ $labels.instance }})
+          description: "HTTP request took more than 1s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxProbeSlowPing
+        # Repere la latence réseau
+        expr: avg_over_time(probe_icmp_duration_seconds[1m]) > 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Blackbox probe slow ping (instance {{ $labels.instance }})
+          description: "Blackbox ping took more than 1s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

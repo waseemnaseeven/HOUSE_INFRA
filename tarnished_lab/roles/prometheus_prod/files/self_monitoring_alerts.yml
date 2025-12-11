@@ -1,0 +1,186 @@
+groups:
+  - name: SELF_PROMETHEUS
+    rules:
+      - alert: PrometheusJobDown
+        # Savoir si l'un des services prometheus run
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} is down"
+          description: "The service {{ $labels.instance }} (job: {{ $labels.job }}) has been down for more than 5 minutes.\n VALUE = {{ $value  }}\n "
+
+      - alert: PrometheusConfigurationReloadFailure
+        # Constater si prometheus a crash au nouveau lancement
+        expr: prometheus_config_last_reload_successful != 1
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus configuration reload failure (instance {{ $labels.instance }})
+          description: "Prometheus configuration reload error\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTooManyRestarts
+        # Alerte si + de 2 changements en moins de 15mins, changes va effectuer un diff
+        expr: changes(process_start_time_seconds{job=~"prometheus|grafana|alertmanager|node_exporter|monitoring_node_exporter|blackbox|blackbox_exporter"}[15m]) > 2
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus too many restarts (instance {{ $labels.instance }})
+          description: "Prometheus has restarted more than twice in the last 15 minutes. It might be crashlooping.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusNotConnectedToAlertmanager
+        # Alerte si la connexion sur Alertmanager a fail
+        expr: prometheus_notifications_alertmanagers_discovered < 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus not connected to alertmanager (instance {{ $labels.instance }})
+          description: "Prometheus cannot connect the alertmanager\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusRuleEvaluationFailures
+        # Comptabilise le nombre de rule qui a fail (mal écrite, n'existe pas)
+        expr: increase(prometheus_rule_evaluation_failures_total[3m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus rule evaluation failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} rule evaluation failures, leading to potentially ignored alerts.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTargetEmpty
+        # Verifie si le nb de cibles découvertes par le "service discovery" est vide, sans aucune machine a surveiller
+        expr: prometheus_sd_discovered_targets == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus target empty (instance {{ $labels.instance }})
+          description: "Prometheus has no target in service discovery\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTsdbCheckpointCreationFailures
+        # Vérifie si le nombre d'échecs de creation de checkpoint, c'est a dire l'enregistremenet d'un instantané de son état, sur 1min. Cela peut compromettre la fiabilité du stockage et la rapidité de la reprise en cas de pb.
+        expr: increase(prometheus_tsdb_checkpoint_creations_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus TSDB checkpoint creation failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} checkpoint creation failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTsdbCheckpointDeletionFailures
+        # Surveille l'echec de la suppression des checkpoints dans la TSDB. Cela peut consommer de maniere excessive le disk, dégradé les perf' lors des opérations d'écriture/lecture.
+        expr: increase(prometheus_tsdb_checkpoint_deletions_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus TSDB checkpoint deletion failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} checkpoint deletion failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTsdbCompactionsFailed
+        # La compaction permet de consolider les segments de données (fichiers de séries temporelles) en fusionnant des blocs anciens pour réduire la fragmentation et optimiser disk usage. Un echec de compaction peut conduire a une augmentation de l'espace disque en raison de données non consolidés, dégradation performance et pb lors d'opération de maintenance TSDB
+        expr: increase(prometheus_tsdb_compactions_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus TSDB compactions failed (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB compactions failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTsdbHeadTruncationsFailed
+        #  La "head" représente la partie les plus récentes et souvent non encore compactées des données en mémoire. Pour gérer la mémoire et préparer les données à la persistance sur le disque, Prometheus effectue régulièrement des opérations de troncation de cette "head". Les conséquences d'un echec de la troncature de la "head" peuvent etre une déterioration de la performance, accumulation de données en mémoire et crash.
+        expr: increase(prometheus_tsdb_head_truncations_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus TSDB head truncations failed (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB head truncation failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusTsdbReloadFailures
+        # Surveille si rechargement échoué, les conséquences peuvent etre le dysfonctionement continu dans la collecte et stockage des données, instabilité de prometheus
+        expr: increase(prometheus_tsdb_reloads_failures_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus TSDB reload failures (instance {{ $labels.instance }})
+          description: "Prometheus encountered {{ $value }} TSDB reload failures\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: SELF_GRAFANA
+    rules:
+      - alert: PrometheusGrafanaJobDown
+        # Savoir si le service grafana run
+        expr: up{job="grafana"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: " Service {{ $labels.instance }} is down"
+          description: "The service {{ $labels.instance }} (job: {{ $labels.job }}) has been down for more than 5 minutes.\n VALUE = {{ $value  }}\n "
+
+  - name: SELF_ALERTMANAGER
+    rules:
+      - alert: PrometheusAlertManagerJobDown
+        # Savoir si l'un des service alertmanager run
+        expr: up{job="alertmanager"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: " Service {{ $labels.instance }} is down"
+          description: "The service {{ $labels.instance }} (job: {{ $labels.job }}) has been down for more than 5 minutes.\n VALUE = {{ $value  }}\n "
+
+      - alert: PrometheusAlertmanagerConfigurationReloadFailure
+        # Constate si alertmanager a crash au nouveau lancement
+        expr: alertmanager_config_last_reload_successful != 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus AlertManager configuration reload failure (instance {{ $labels.instance }})
+          description: "AlertManager configuration reload error\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusAlertManagerClusterSyncFailed
+        # Alerte si synchronisation entre les alertmanagers failed
+        expr: alertmanager_cluster_members != 3
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus AlertManager cluster member failure (instance {{ $labels.instance }})
+          description: "AlertManager cluster member error\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusAlertmanagerPeerError
+        # Alerte si ou plusieurs alertmanager ne sont pas présent
+        expr: count(alertmanager_cluster_peers_joined_total) != 3
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus AlertManager peer failure (instance {{ $labels.instance }})
+          description: "AlertManager peer error\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusAlertmanagerE2eDeadManSwitch
+        # Cette alerte va tjrs etre envoyé pour tester la bonne communication entre alertmanager et prometheus
+        expr: vector(1)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus AlertManager E2E dead man switch (instance {{ $labels.instance }})
+          description: "Prometheus DeadManSwitch is an always-firing alert. It's used as an end-to-end test of Prometheus through the Alertmanager.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusAlertmanagerNotificationFailing
+        # Calculer le nb d'envoi de notifications qui a fail
+        expr: rate(alertmanager_notifications_failed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus AlertManager notification failing (instance {{ $labels.instance }})
+          description: "Alertmanager is failing sending notifications\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

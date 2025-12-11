@@ -1,0 +1,87 @@
+prometheus_enabled: true
+
+prometheus_version: "3.4.1"
+prometheus_config_dir: "/etc/prometheus"
+prometheus_binary: "/usr/local/bin/prometheus"
+prometheus_user: "prometheus"
+prometheus_group: "prometheus"
+prometheus_service_file: "/etc/systemd/system/prometheus.service"
+prometheus_config_file: "{{ prometheus_config_dir }}/prometheus.yml"
+prometheus_tls_config: "{{ prometheus_config_dir }}/tls_config.yml"
+prometheus_log_level: "info"
+
+prometheus_pathes_to_own: []
+
+prometheus_alertmanagers_port: "9093"
+
+prometheus_storage_path: /var/lib/prometheus/data
+prometheus_retention: 15d
+prometheus_replica_name: "{{ inventory_hostname_short }}"
+prometheus_tls_server_enabled: false
+prometheus_tls_validate_client_enabled: false
+prometheus_tls_clients: []
+prometheus_basic_auth_users: []
+prometheus_tls_server_cert_file: "/etc/prometheus_ssl/prometheus_server.crt"
+prometheus_tls_server_key_file: "/etc/prometheus_ssl/prometheus_server.key"
+prometheus_tls_client_cert_file: "/etc/prometheus_ssl/prometheus_client.crt"
+prometheus_tls_client_key_file: "/etc/prometheus_ssl/prometheus_client.key"
+
+prometheus_tls_config_client:
+  ca_file: "{{ prometheus_ca_servers_file }}"
+  cert_file: "{{ prometheus_tls_client_cert_file }}"
+  key_file: "{{ prometheus_tls_client_key_file }}"
+
+prometheus_ca_clients_file: "{{ prometheus_config_dir }}/ca_client.crt"
+prometheus_ca_servers_file: "{{ prometheus_config_dir }}/ca_server.crt"
+
+prometheus_jobs: {} # internal metrics usually
+# thanos_store
+# thanos_ruler
+# alertmanager
+# thanos_query
+# grafana
+# blackbox
+
+prometheus_rules_base:
+  - self_monitoring_alerts.yml
+  - node_exporter_alerts.yml
+  - blackbox_exporter_alerts.yml
+prometheus_rules_thanos:
+  - thanos_alerts.yml
+
+prometheus_rules_copied: "{{ prometheus_rules_base + (prometheus_rules_thanos if prometheus_thanos_enabled else []) }}"
+prometheus_rules_enabled_files: "{{ prometheus_rules_copied }}"
+prometheus_rules_removed: []
+
+### THANOS
+
+prometheus_thanos_enabled: false
+
+prometheus_thanos_version: "0.38.0"
+prometheus_thanos_log_level: "{{ prometheus_log_level }}"
+prometheus_thanos_config_dir: "/etc/thanos"
+prometheus_thanos_binary: "/usr/local/bin/thanos"
+prometheus_thanos_bucket_file: "{{ prometheus_thanos_config_dir }}/bucket.yml"
+prometheus_thanos_http_client_file: "{{ prometheus_thanos_config_dir }}/prometheus_http_client.yml"
+prometheus_thanos_service_file: "/etc/systemd/system/thanos.service"
+prometheus_thanos_tls_server_enabled: "{{ prometheus_tls_server_enabled }}"
+prometheus_thanos_tls_validate_client_enabled: "{{ prometheus_tls_validate_client_enabled }}"
+prometheus_thanos_tls_clients: "{{ prometheus_tls_clients }}"
+prometheus_thanos_basic_auth_users: "{{ prometheus_basic_auth_users }}"
+prometheus_thanos_tls_config: "{{ prometheus_thanos_config_dir }}/tls_config.yml"
+
+prometheus_thanos_prometheus_endpoint: "http://127.0.0.1:9090"
+
+prometheus_thanos_ca_servers_file: "{{ prometheus_ca_servers_file }}"
+prometheus_thanos_ca_clients_file: "{{ prometheus_ca_clients_file }}"
+prometheus_thanos_tls_client_cert_file: "{{ prometheus_tls_client_cert_file }}"
+prometheus_thanos_tls_client_key_file: "{{ prometheus_tls_client_key_file }}"
+prometheus_thanos_tls_server_cert_file: "{{ prometheus_tls_server_cert_file }}"
+prometheus_thanos_tls_server_key_file: "{{ prometheus_tls_server_key_file }}"
+
+prometheus_thanos_s3_bucket_name: ""
+prometheus_thanos_s3_endpoint: ""
+prometheus_thanos_s3_region: ""
+prometheus_thanos_s3_access_key: ""
+prometheus_thanos_s3_secret_key: ""
+prometheus_thanos_s3_prefix: ""

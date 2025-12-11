@@ -1,0 +1,20 @@
+---
+- name: Remove Vault Completely
+  hosts: raspberry_pi
+  become: yes
+
+  vars:
+    confirm_removal: "{{ vault_confirm_removal | default('') }}"
+    vault_operation: "remove"
+
+  pre_tasks:
+    - name: Verify confirmation
+      ansible.builtin.fail:
+        msg: "Removal cancelled. Run with: make vault-reset CONFIRM=yes"
+      when: confirm_removal != 'DELETE'
+
+  tasks:
+    - name: Include vault removal tasks
+      ansible.builtin.include_role:
+        name: vault
+        tasks_from: remove

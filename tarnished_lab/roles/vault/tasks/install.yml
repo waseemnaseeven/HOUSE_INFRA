@@ -1,0 +1,99 @@
+---
+- name: Ensure unzip is installed
+  ansible.builtin.package:
+    name: unzip
+    state: present
+
+- name: Ensure vault group exists
+  ansible.builtin.group:
+    name: "{{ vault_group }}"
+    state: present
+
+- name: Ensure vault user exists
+  ansible.builtin.user:
+    name: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+
+- name: Check installed Vault version
+  ansible.builtin.command: "{{ vault_bin_path }} --version"
+  register: vault_installed
+  failed_when: false
+  changed_when: false
+
+- name: Remove old Vault binary if version mismatch
+  ansible.builtin.file:
+    path: "{{ vault_bin_path }}"
+    state: absent
+  when: vault_installed.rc == 0 and vault_version not in vault_installed.stdout
+
+- name: Download Vault binary if not installed or version mismatch
+  ansible.builtin.get_url:
+    url: "https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_{{ vault_architecture }}.zip"
+    dest: "/tmp/vault.zip"
+    mode: '0644'
+  when: vault_installed.rc != 0 or vault_version not in vault_installed.stdout
+
+- name: Unzip Vault binary
+  ansible.builtin.unarchive:
+    src: "/tmp/vault.zip"
+    dest: "/usr/local/bin"
+    remote_src: yes
+  when: vault_installed.rc != 0 or vault_version not in vault_installed.stdout
+
+- name: Ensure Vault binary permissions
+  ansible.builtin.file:
+    path: "{{ vault_bin_path }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create Vault config and data dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0755'
+  loop:
+    - "{{ vault_config_dir }}"
+    - "{{ vault_data_dir }}"
+    - "{{ vault_unseal_keys_dir }}"
+
+- name: Deploy Vault config
+  ansible.builtin.template:
+    src: config.hcl.j2
+    dest: "{{ vault_config_dir }}/config.hcl"
+    owner: "root"
+    group: "root"
+    mode: '0644'
+
+- name: Create Vault TLS directory
+  ansible.builtin.file:
+    path: /etc/vault.d/tls
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0755'
+
+- name: Deploy systemd unit
+  ansible.builtin.template:
+    src: vault.service.j2
+    dest: "{{ vault_systemd_unit }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable and start Vault
+  ansible.builtin.systemd:
+    name: vault
+    state: started
+    enabled: yes
+
+

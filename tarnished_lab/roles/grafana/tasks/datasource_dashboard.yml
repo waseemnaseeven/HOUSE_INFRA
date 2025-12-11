@@ -1,0 +1,86 @@
+- name: Grab ca.crt
+  slurp:
+    src: "{{ grafana_ca_file }}"
+  register: grafana_ca_cert_file
+
+- name: ca var
+  set_fact:
+    grafana_tls_ca_cert: "{{ grafana_ca_cert_file.content | b64decode }}"
+
+- name: grab grafana_client.crt
+  slurp:
+    src: "/etc/grafana_ssl_client/grafana_client.crt"
+  register: grafana_cert_file
+
+- name: grafana_client.crt var
+  set_fact:
+    grafana_tls_client_cert: "{{ grafana_cert_file.content | b64decode }}"
+
+- name: grab grafana_client.key
+  slurp:
+    src: "/etc/grafana_ssl_client/grafana_client.key"
+  register: grafana_key_file
+
+- name: grafana_client.crt var
+  set_fact:
+    grafana_tls_client_key: "{{ grafana_key_file.content | b64decode }}"
+
+- name: Add prometheus data source https
+  community.grafana.grafana_datasource:
+    name: "prometheusdatasource42"
+    grafana_url: "https://localhost:3000"
+    grafana_user: "{{ grafana_user_admin | default('admin') }}"
+    grafana_password: "{{ grafana_user_password | default('admin') }}"
+    org_id: "1"
+    ds_type: "prometheus"
+    ds_url: "https://{{ prometheus_private_ip }}:{{ prometheus_port }}"
+    is_default: true
+    tls_ca_cert: "{{ grafana_tls_ca_cert }}"
+    tls_client_cert: "{{ grafana_tls_client_cert }}"
+    tls_client_key: "{{ grafana_tls_client_key }}"
+    enforce_secure_data: true
+  when: not grafana_thanos_enabled
+
+- name: Add thanos query as datasource https
+  community.grafana.grafana_datasource:
+    name: "thanosdatasource42"
+    grafana_url: "https://localhost:3000"
+    grafana_user: "{{ grafana_user_admin | default('admin') }}"
+    grafana_password: "{{ grafana_user_password | default('admin') }}"
+    org_id: "1"
+    ds_type: "prometheus"
+    ds_url: "https://{{ prometheus_private_ip }}:{{ prometheus_port }}"
+    is_default: true
+    tls_ca_cert: "{{ grafana_tls_ca_cert }}"
+    tls_client_cert: "{{ grafana_tls_client_cert }}"
+    tls_client_key: "{{ grafana_tls_client_key }}"
+    enforce_secure_data: true
+  when: grafana_thanos_enabled
+
+- name: Copy node_exporter dashboard json 
+  ansible.builtin.copy:
+    src: node_exporter.json
+    dest: "{{ grafana_dashboard_node_exporter_file }}"
+    owner: "{{ grafana_user }}"
+    group: "{{ grafana_group }}"
+    mode: '0644'
+
+- name: Activate dashboard for node exporter
+  template:
+    src: dashboard-node-exporter.yml.j2
+    dest: "{{ grafana_dashboard_node_exporter_config_file }}"
+    mode: '0644'
+
+- name: Copy blackbox dashboard json 
+  ansible.builtin.copy:
+    src: blackbox.json
+    dest: "{{ grafana_dashboard_blackbox_file }}"
+    owner: "{{ grafana_user }}"
+    group: "{{ grafana_group }}"
+    mode: '0644'
+
+- name: Activate dashboard for blackbox
+  template:
+    src: dashboard-blackbox.yml.j2
+    dest: "{{ grafana_dashboard_blackbox_config_file }}"
+    mode: '0644'

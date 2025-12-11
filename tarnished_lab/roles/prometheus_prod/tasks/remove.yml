@@ -1,0 +1,84 @@
+- name: Check if prometheus service exist
+  stat:
+    path: "{{ prometheus_service_file }}"
+  register: _service_file
+
+- name: Check if thanos service exist
+  stat:
+    path: "{{ prometheus_thanos_service_file }}"
+  register: _thanos_service_file
+
+- name: Disable thanos service
+  ansible.builtin.systemd_service:
+    state: "stopped"
+    name: thanos.service
+    enabled: false
+  when: _service_file.stat.exists
+
+- name: Disable prom service
+  ansible.builtin.systemd_service:
+    state: "stopped"
+    name: prometheus.service
+    enabled: false
+  when: _service_file.stat.exists and not prometheus_enabled
+
+- name: Remove prometheus
+  when: not prometheus_enabled
+  block:
+    - name: Remove service
+      ansible.builtin.file:
+        path: "{{ prometheus_service_file }}"
+        state: absent
+      register: _prometheus_systemd_absent
+
+    - name: "Remove prometheus config folder"
+      ansible.builtin.file:
+        path: "{{ prometheus_config_dir }}"
+        state: absent
+
+    - name: "Remove prometheus data folder"
+      ansible.builtin.file:
+        path: "{{ prometheus_storage_path }}"
+        state: absent
+
+    - name: Remove prom binary
+      ansible.builtin.file:
+        path: "{{ prometheus_binary }}"
+        state: absent
+
+- name: Remove thanos
+  block:
+    - name: Remove service
+      ansible.builtin.file:
+        path: "{{ prometheus_thanos_service_file }}"
+        state: absent
+      register: _prometheus_thanos_systemd_absent
+
+    - name: "Remove thanos config folder"
+      ansible.builtin.file:
+        path: "{{ prometheus_thanos_config_dir }}"
+        state: absent
+
+    - name: Remove thanos binary
+      ansible.builtin.file:
+        path: "{{ prometheus_thanos_binary }}"
+        state: absent
+
+- name: Remove user
+  when: not prometheus_enabled
+  block:
+    - name: Remove user
+      ansible.builtin.user:
+        name: "{{ prometheus_user }}"
+        state: absent
+        remove: yes
+
+    - name: Remove group
+      ansible.builtin.group:
+        name: "{{ prometheus_group }}"
+        state: absent
+
+- name: Refresh systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: yes
+  when: _prometheus_thanos_systemd_absent.changed or _prometheus_systemd_absent.changed

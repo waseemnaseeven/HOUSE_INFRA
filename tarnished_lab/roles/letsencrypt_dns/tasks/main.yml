@@ -1,0 +1,9 @@
+---
+# tasks file for letsencrypt-dns
+- include_tasks: letsencrypt.yml
+  tags:
+    - letsencrypt
+  loop: "{{ letsencrypt_certs }}"
+  loop_control:
+    label: "{{ cert.common_name }}"
+    loop_var: cert

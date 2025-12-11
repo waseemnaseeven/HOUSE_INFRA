@@ -1,0 +1,30 @@
+- name: Add the user userns_remap
+  ansible.builtin.user:
+    name: "{{ docker_userns_remap_user }}"
+    system: yes
+    shell: "/bin/false"
+    create_home: no
+  when:
+    - docker_userns_remap_enabled
+  notify:
+    - Restart docker
+
+- name: subuid
+  ansible.builtin.lineinfile:
+    path: /etc/subuid
+    regexp: "^{{ docker_userns_remap_user }}:"
+    line: "{{ docker_userns_remap_user }}:{{ docker_userns_remap_uid }}:65536"
+  when:
+    - docker_userns_remap_enabled
+  notify:
+    - Restart docker
+
+- name: subgid
+  ansible.builtin.lineinfile:
+    path: /etc/subgid
+    regexp: "^{{ docker_userns_remap_user }}:"
+    line: "{{ docker_userns_remap_user }}:{{ docker_userns_remap_gid }}:65536"
+  when:
+    - docker_userns_remap_enabled
+  notify:
+    - Restart docker

@@ -1,0 +1,120 @@
+---
+- name: Check if OpenVPN server certificate exists
+  ansible.builtin.stat:
+    path: "{{ openvpn_server_cert }}"
+  register: server_cert_stat
+
+- name: Get certificate expiration date
+  community.crypto.x509_certificate_info:
+    path: "{{ openvpn_server_cert }}"
+  register: cert_info
+  when: server_cert_stat.stat.exists
+
+- name: Calculate days until expiration
+  ansible.builtin.set_fact:
+    days_until_expiry: "{{ ((cert_info.not_after | to_datetime('%Y%m%d%H%M%SZ')) - (ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%SZ'))).days }}"
+  when: server_cert_stat.stat.exists
+
+- name: Display certificate expiration info
+  ansible.builtin.debug:
+    msg:
+      - "Certificate: {{ openvpn_server_cert }}"
+      - "Expires: {{ cert_info.not_after }}"
+      - "Days until expiry: {{ days_until_expiry }}"
+  when: server_cert_stat.stat.exists
+
+- name: Check if renewal needed
+  ansible.builtin.set_fact:
+    renewal_needed: "{{ days_until_expiry | int < cert_renewal_threshold_days }}"
+  when: server_cert_stat.stat.exists
+
+- name: Warning if renewal needed
+  ansible.builtin.debug:
+    msg:
+      - "⚠ WARNING: Certificate renewal needed!"
+      - "Certificate expires in {{ days_until_expiry }} days"
+      - "Threshold: {{ cert_renewal_threshold_days }} days"
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Load Vault root token
+  ansible.builtin.slurp:
+    src: "/etc/vault.d/keys/root_token"
+  register: vault_token_file
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Set Vault token fact
+  ansible.builtin.set_fact:
+    vault_token: "{{ vault_token_file.content | b64decode | trim }}"
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Backup old certificate
+  ansible.builtin.copy:
+    src: "{{ openvpn_server_cert }}"
+    dest: "{{ openvpn_server_cert }}.{{ ansible_date_time.date }}.bak"
+    remote_src: yes
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Generate new CSR for server
+  community.crypto.openssl_csr:
+    path: "{{ openvpn_server_dir }}/server.csr"
+    privatekey_path: "{{ openvpn_server_key }}"
+    common_name: "{{ openvpn_server_common_name }}"
+    subject_alt_name:
+      - "DNS:{{ openvpn_server_common_name }}"
+      - "IP:{{ ansible_default_ipv4.address }}"
+    force: yes
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Read new CSR content
+  ansible.builtin.slurp:
+    src: "{{ openvpn_server_dir }}/server.csr"
+  register: new_server_csr
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Sign new certificate with Vault
+  ansible.builtin.uri:
+    url: "{{ vault_addr }}/v1/pki_int/sign/openvpn-server"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      csr: "{{ new_server_csr.content | b64decode }}"
+      common_name: "{{ openvpn_server_common_name }}"
+      ip_sans: "{{ ansible_default_ipv4.address }}"
+      ttl: "8760h"
+    status_code: [200, 204]
+  register: new_server_cert_response
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Save new server certificate
+  ansible.builtin.copy:
+    content: "{{ new_server_cert_response.json.data.certificate }}"
+    dest: "{{ openvpn_server_cert }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+  notify: restart openvpn
+
+- name: Remove CSR file
+  ansible.builtin.file:
+    path: "{{ openvpn_server_dir }}/server.csr"
+    state: absent
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Certificate renewal completed
+  ansible.builtin.debug:
+    msg:
+      - "✓ Certificate renewed successfully!"
+      - "Old certificate backed up to: {{ openvpn_server_cert }}.{{ ansible_date_time.date }}.bak"
+      - "OpenVPN will be restarted to use new certificate"
+  when: server_cert_stat.stat.exists and renewal_needed | bool
+
+- name: Certificate is still valid
+  ansible.builtin.debug:
+    msg:
+      - "✓ Certificate is still valid"
+      - "Days until expiry: {{ days_until_expiry }}"
+      - "No renewal needed (threshold: {{ cert_renewal_threshold_days }} days)"
+  when: server_cert_stat.stat.exists and not (renewal_needed | bool)

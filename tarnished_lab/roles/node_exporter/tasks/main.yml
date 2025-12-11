@@ -1,0 +1,15 @@
+---
+# tasks file for install_node_exporter
+
+- name: Install and configure Node Exporter
+  when: node_exporter_enabled | bool
+  block:
+    - name: "Installing node_exporter"
+      ansible.builtin.include_tasks: install.yml
+
+    - name: "Configuring and deploying node_exporter"
+      ansible.builtin.include_tasks: config.yml
+
+- name: "Remove node_exporter"
+  when: not (node_exporter_enabled | bool)
+  ansible.builtin.include_tasks: remove.yml

@@ -1,0 +1,23 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for grafana
+grafana_user_admin: "changeme"
+grafana_user_password: "{{ lookup('pipe', 'vault kv get -field=grafana_user_password rd/monitoring/secrets/grafana') }}"
+grafana_bin_path: "/usr/share/grafana/bin"
+grafana_config_file: "/etc/grafana/grafana.ini"
+grafana_user: grafana
+grafana_group: grafana
+grafana_enabled: true
+grafana_datasource: false
+grafana_service_file: "/usr/lib/systemd/system/grafana-server.service"
+grafana_dashboard_node_exporter_file: "/var/lib/grafana/node-exporter.json"
+grafana_dashboard_node_exporter_config_file: "/etc/grafana/provisioning/dashboards/dashboard-node-exporter.yml"
+grafana_dashboard_blackbox_file: "/var/lib/grafana/blackbox.json"
+grafana_dashboard_blackbox_config_file: "/etc/grafana/provisioning/dashboards/dashboard-blackbox.yml"
+grafana_cert_file: "/etc/grafana_ssl/grafana.crt" # partie server grafana.ini
+grafana_key_file: "/etc/grafana_ssl/grafana.key" # partie server grafana.ini
+grafana_ca_file: "/etc/grafana/ca.crt"
+
+grafana_url: "https://localhost:3000"
+
+grafana_thanos_enabled: false

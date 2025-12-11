@@ -1,0 +1,25 @@
+---
+syncthing_package_name: syncthing
+syncthing_service_name: syncthing
+syncthing_config_dir: "{{ ansible_env.HOME }}/.config/syncthing"
+
+# Unit systemd utilisateur (Linux)
+syncthing_systemd_unit: |
+  [Unit]
+  Description=Syncthing for %u
+  Documentation=man:syncthing(1)
+  After=network-online.target
+
+  [Service]
+  ExecStart=/usr/bin/syncthing -no-browser -no-restart -logflags=0
+  Restart=on-failure
+  SuccessExitStatus=3 4
+  RestartForceExitStatus=3 4
+  TimeoutStartSec=10
+  ProtectSystem=full
+  PrivateTmp=true
+  SystemCallFilter=@system-service
+  NoNewPrivileges=true
+
+  [Install]
+  WantedBy=default.target

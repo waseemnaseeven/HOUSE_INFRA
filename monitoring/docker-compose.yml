@@ -1,0 +1,78 @@
+
+services:
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "4000:4000"
+    networks:
+      - network
+      - snak_default
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - grafana-storage:/var/lib/grafana
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    networks:
+      - network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks:
+      - network
+      - snak_default
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules:/etc/prometheus/rules/
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    networks:
+      - network
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+
+  postgres_exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    ports:
+      - "9187:9187"
+    networks:
+      - network
+      - snak_default      
+    environment:
+      DATA_SOURCE_NAME: >-
+        postgresql://admin:admin@postgres:5432/postgres?sslmode=disable
+
+  karma:
+    image: ghcr.io/prymitive/karma:latest
+    ports:
+      - "8080:8080"
+    networks:
+      - network
+    environment:
+      CONFIG_FILE: >-
+        /etc/karma/karma.yml
+    volumes:
+      - ./karma/karma.yml:/etc/karma/karma.yml
+    
+      
+  # cloudwatch_exporter:
+  #   image: quay.io/prometheus/cloudwatch-exporter
+
+networks:
+  network:
+  snak_default:
+    external: true
+
+volumes:
+  grafana-storage: {}
+  # prometheus-storage: {}
+  # alertmanager-storage: {}
+  # loki-storage: {}
+  # node_exporter-storage: {}
+  

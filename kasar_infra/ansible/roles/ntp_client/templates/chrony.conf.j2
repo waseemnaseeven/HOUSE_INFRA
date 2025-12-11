@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+
+{% for ntp_server in ntp_servers %}
+server {{ ntp_server }} iburst
+{% endfor %}
+
+makestep 1.0 3

@@ -1,0 +1,43 @@
+---
+- name: Deploy OpenVPN server configuration
+  ansible.builtin.template:
+    src: server.conf.j2
+    dest: "{{ openvpn_config_dir }}/server.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart openvpn
+
+- name: Configure NAT for OpenVPN
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: "{{ openvpn_server_network }}/24"
+    out_interface: "{{ ansible_default_ipv4.interface }}"
+    jump: MASQUERADE
+    comment: "OpenVPN NAT"
+  notify: save iptables
+
+- name: Allow OpenVPN through firewall
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: "{{ openvpn_protocol }}"
+    destination_port: "{{ openvpn_port }}"
+    jump: ACCEPT
+    comment: "OpenVPN"
+  notify: save iptables
+
+- name: Allow forwarding for OpenVPN
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: tun0
+    jump: ACCEPT
+    comment: "OpenVPN forward"
+  notify: save iptables
+
+- name: Enable and start OpenVPN server
+  ansible.builtin.systemd:
+    name: "openvpn@server"
+    state: started
+    enabled: yes
+    daemon_reload: yes

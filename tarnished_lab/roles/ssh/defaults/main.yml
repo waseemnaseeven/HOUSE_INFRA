@@ -1,0 +1,38 @@
+---
+sshd_port: 22
+sshd_permit_root_login: "no"
+sshd_pubkey: "yes"
+sshd_password_authentication: "no"
+sshd_log_level: "VERBOSE"
+ipaclient_state: "absent"
+sshd_x11_forwading: "no"
+sshd_allow_tcp_forwarding: "no"
+sshd_allow_agent_forwarding: "no"
+sshd_acceptenv: "no"
+sshd_allow_groups: ""
+sshd_allow_users: ""
+sshd_permitopens: []
+sshd_dangerous_permitopens_all: false
+
+sshd_custom_config: ""
+
+_sshd_valid_principals:
+  - "{{ inventory_hostname }}"
+  - "{{ ansible_host }}"
+
+sshd_additional_valid_principals: []
+sshd_force_renew_host_cert: false
+ssh_valid_principals: "{{ _sshd_valid_principals + sshd_additional_valid_principals }}"
+
+sshd_sign_host_certificate: true
+sshd_harden_crypto: true
+#sshd_vault_ca_path:
+sshd_host_key_cert: "{{ lookup('pipe', 'vault write -field=signed_key ' + sshd_vault_ca_path + ' valid_principals=' + ssh_valid_principals | join(',') + ' cert_type=host public_key=' + ansible_ssh_host_key_ecdsa_public) }}"
+
+sshd_client_ca_enabled: false
+sshd_client_ca_path: /etc/ssh-ca
+sshd_client_ca_keys: []
+sshd_authorizedprincipalsfolder: "/etc/ssh-authorizedprincipals"
+sshd_authorizedprincipalsfile_enabled: false
+sshd_authorizedprincipalsfile: "/etc/ssh-authorizedprincipals/%u"
+sshd_authorizedprincipalsfiles: {}

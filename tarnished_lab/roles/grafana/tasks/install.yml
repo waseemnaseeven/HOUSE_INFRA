@@ -1,0 +1,46 @@
+---
+- name: Verify if grafana is installed
+  stat:
+    path: "{{ grafana_bin_path }}/grafana-server"
+  register: grafana_installed
+
+- name: Add group
+  ansible.builtin.group:
+    name: "{{ grafana_group }}"
+    system: yes
+    state: present
+
+- name: Create user for grafana
+  ansible.builtin.user:
+    name: "{{ grafana_user }}"
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+
+- name: Create folder for APT key
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/
+    state: directory
+  when: not grafana_installed.stat.exists
+
+- name: Importer la clé GPG pour Grafana
+  ansible.builtin.shell: wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | tee /etc/apt/keyrings/grafana.gpg > /dev/null
+  when: not grafana_installed.stat.exists
+
+- name: Ajouter le dépôt Grafana
+  ansible.builtin.shell: echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list
+  when: not grafana_installed.stat.exists
+
+- name: Mettre à jour la liste des paquets
+  ansible.builtin.apt:
+    update_cache: yes
+  when: not grafana_installed.stat.exists
+
+- name: Installer Grafana
+  ansible.builtin.apt:
+    name: grafana
+    state: latest
+    update_cache: yes
+  when: not grafana_installed.stat.exists
+
+

@@ -1,0 +1,114 @@
+---
+- name: Create argocd namespace
+  shell: kubectl create namespace {{ argocd_namespace }}
+  ignore_errors: yes
+  tags:
+    - argocd
+
+- name: Check if argocd is installed
+  stat:
+    path: "/usr/local/bin/argocd"
+  register: _argocd_bin
+  tags:
+    - argocd
+
+- name: Download argocd CLI binary
+  when: not _argocd_bin.stat.exists
+  ansible.builtin.get_url:
+    url: "{{ argocd_cli_url }}"
+    dest: /tmp/argocd-linux-amd64
+    mode: '0555'
+  tags:
+    - argocd
+
+- name: Install argocd CLI
+  when: not _argocd_bin.stat.exists
+  ansible.builtin.command:
+    cmd: install -m 0555 /tmp/argocd-linux-amd64 "{{ argocd_cli_dest }}"
+  tags:
+    - argocd
+
+- name: Remove temporary CLI binary
+  when: not _argocd_bin.stat.exists
+  ansible.builtin.file:
+    path: /tmp/argocd-linux-amd64
+    state: absent
+  tags:
+    - argocd
+
+- name: Deploy ArgoCD manifests
+  ansible.builtin.shell: |
+    kubectl apply -n {{ argocd_namespace }} \
+      -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  register: argo_apply
+  changed_when: "'configured' in argo_apply.stdout"
+  tags:
+    - argocd
+
+- name: Deploy NodePort service for argocd-server
+  template:
+    src: "argocd_nodeport.yml.j2"
+    dest: "/tmp/argocd_nodeport.yml"
+    mode: 0755
+  tags:
+    - argocd
+
+- name: Apply argocd NodePort
+  shell: "kubectl apply -f /tmp/argocd_nodeport.yml"
+  ignore_errors: yes
+  tags:
+    - argocd
+
+- name: Wait for argocd-initial-admin-secret to exist
+  ansible.builtin.wait_for:
+    path: /dev/null
+    delay: 10
+    timeout: 120
+  register: wait_secret
+  tags:
+    - argocd
+
+- name: Retrieve ArgoCD admin password (base64 decode)
+  ansible.builtin.shell: |
+    kubectl get secret argocd-initial-admin-secret -n {{ argocd_namespace }} \
+      -o jsonpath="{.data.password}" | base64 --decode
+  register: argocd_password
+  until: argocd_password.stdout != ""
+  retries: 6
+  delay: 5
+  tags:
+    - argocd
+
+- name: Save ArgoCD password locally
+  ansible.builtin.copy:
+    dest: ./argocd_admin_password.txt
+    content: "{{ argocd_password.stdout }}"
+    mode: '0777'
+  tags:
+    - argocd
+
+- name: Get Kubernetes master node IP
+  ansible.builtin.shell: |
+    kubectl get nodes -o wide | awk '/master/ {print $6; exit}'
+  register: master_ip
+  tags:
+    - argocd
+
+- name: Login to ArgoCD CLI
+  ansible.builtin.command: >
+    argocd login {{ master_ip.stdout }}:{{ argocd_nodeport }}
+    --username admin
+    --password {{ argocd_password.stdout }}
+    --insecure
+  register: argocd_login
+  until: argocd_login.rc == 0
+  retries: 5
+  delay: 5
+  tags:
+    - argocd
+
+- name: Display successful login message
+  ansible.builtin.debug:
+    msg: "ArgoCD is installed and you are logged in. Admin password stored in ./argocd_admin_password.txt"
+  tags:
+    - argocd

@@ -1,0 +1,4 @@
+ntp_timezone: Etc/UTC
+
+
+#ntp_servers: [] : make sure it fails if no server written

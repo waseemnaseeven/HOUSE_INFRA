@@ -1,0 +1,171 @@
+- name: Display common name
+  ansible.builtin.debug:
+    msg: "{{ cert.common_name }}"
+- name: Check if certificate already exists
+  stat:
+    path: "{{ cert.base_path | default('') }}/{{ cert.cert_path if cert.cert_path is defined else cert.concat_path if cert.concat_path is defined else cert.concat_fullchain_path }}"
+  register: _cert_file
+
+- name: Check validity
+  community.crypto.x509_certificate_info:
+    path: "{{ _cert_file.stat.path }}"
+    valid_at:
+      duration: "{{ item.valid_at | default('+4w') }}"
+  register: _cert_info
+  when: _cert_file.stat.exists
+
+- name: Generate new private key and certificate from Vault
+  block:
+    - name: Add group
+      group:
+        name: "{{ cert.owner }}"
+        state: present
+      when: (cert.add_owner | default(true))
+
+    - name: Add user
+      user:
+        name: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+      when: (cert.add_group | default(true))
+
+    - name: Generate an OpenSSL private key
+      community.crypto.openssl_privatekey_pipe:
+        type: "{{ cert.openssl_key_type | default('RSA') }}"
+        curve: "{{ cert.openssl_curve | default(omit) }}"
+        size: "{{ cert.openssl_size | default(4096) }}"
+      register: _vault_private_key
+      no_log: true
+
+    - name: Generate an OpenSSL Certificate Signing Request
+      community.crypto.openssl_csr_pipe:
+        privatekey_content: "{{ _vault_private_key.privatekey }}"
+        basic_constraints: "{{ cert.basic_constraints | default(omit) }}"
+        basic_constraints_critical: "{{ cert.basic_constraints_critical | default(omit) }}"
+      register: _vault_csr
+
+    - name: Sign the CSR against Vault without management proxy
+      ansible.builtin.uri:
+        url: "{{ lookup('ansible.builtin.env', 'VAULT_ADDR') }}/v1/{{ cert.issue_path }}"
+        body:
+          csr: "{{ _vault_csr.csr }}"
+          common_name: "{{ cert.common_name }}"
+          alt_names: "{{ cert.alt_names | default(omit) }}"
+          other_sans: "{{ cert.other_sans | default(omit) }}"
+          ip_sans: "{{ cert.ip_sans | default(omit) }}"
+          exclude_cn_from_sans: "{{ cert.exclude_cn_from_sans | default('false') | string }}"
+          user_ids: "{{ cert.user_ids | default(omit) }}"
+          ttl: "{{ cert.ttl | default(omit) }}"
+          # For intermediate CA
+          permitted_dns_domains: "{{ cert.permitted_dns_domains | default(omit) }}"
+          max_path_length: "{{ cert.max_path_length | default(omit) }}"
+          country: "{{ cert.country | default(omit) }}"
+          province: "{{ cert.province | default(omit) }}"
+          locality: "{{ cert.locality | default(omit) }}"
+          postal_code: "{{ cert.postal_code | default(omit) }}"
+          street_address: "{{ cert.street_address | default(omit) }}"
+          organization: "{{ cert.organization | default(omit) }}"
+          ou: "{{ cert.ou | default(omit) }}"
+        body_format: json
+        method: POST
+        client_cert: "{{ lookup('ansible.builtin.env', 'VAULT_CLIENT_CERT') | default(omit) }}"
+        client_key: "{{ lookup('ansible.builtin.env', 'VAULT_CLIENT_KEY') | default(omit) }}"
+        ca_path: /etc/ssl/certs/ca-certificates.crt
+        headers:
+          X-Vault-Token: "{{ lookup('pipe', 'vault print token') }}"
+      delegate_to: localhost
+      become: no
+      register: _vault_cert_output_nomng
+      when: not (management_proxy_enabled | default(false))
+
+    - name: Set issued certificate variable when not using management proxy
+      set_fact:
+        _vault_cert: "{{ _vault_cert_output_nomng.json.data }}"
+      when: not (management_proxy_enabled | default(false))
+
+    - name: Set issued certificate variable when using management proxy
+      set_fact:
+        _vault_cert: "{{ _vault_cert_output_mng.json.data }}"
+      when: management_proxy_enabled | default(false)
+
+    - name: Create destination directories
+      file:
+        dest: "{{ item }}"
+        state: directory
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+      with_items:
+        - "{{ cert.base_path | default('') }}/{{ cert.cert_path | default('') | dirname }}"
+        - "{{ cert.base_path | default('') }}/{{ cert.key_path | default('') | dirname }}"
+        - "{{ cert.base_path | default('') }}/{{ cert.ca_chain_path | default('') | dirname }}"
+        - "{{ cert.base_path | default('') }}/{{ cert.concat_path  | default('') | dirname }}"
+
+    - name: Copy certificate
+      copy:
+        content: "{{ _vault_cert.certificate }}\n"
+        dest: "{{ cert.base_path | default('') }}/{{ cert.cert_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0644
+      when: cert.cert_path is defined
+
+    - name: Copy private key
+      copy:
+        content: "{{ _vault_private_key.privatekey }}\n"
+        dest: "{{ cert.base_path | default('') }}/{{ cert.key_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0600
+      when: cert.key_path is defined
+
+    - name: Copy CA chain
+      copy:
+        content: "{{ ( _vault_cert.ca_chain | join('\n') )}}\n"
+        dest: "{{ cert.base_path | default('') }}/{{ cert.ca_chain_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0644
+      when: cert.ca_chain_path is defined
+
+    - name: Copy full chain
+      copy:
+        content: "{{ _vault_cert.certificate }}\n{{ ( _vault_cert.ca_chain | join('\n') )}}\n"
+        dest: "{{ cert.base_path | default('') }}/{{ cert.full_ca_chain_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0644
+      when: cert.full_ca_chain_path is defined
+
+    - name: Copy concat private key and certificate
+      copy:
+        content: "{{ _vault_cert.certificate }}\n{{ _vault_private_key.privatekey }}\n"
+        dest: "{{ cert.base_path | default('') }}/{{ cert.concat_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0600
+      when: cert.concat_path is defined
+
+    - name: Copy concat private key and full chain certificate
+      copy:
+        content: "{{ _vault_cert.certificate }}\n{{ ( _vault_cert.ca_chain | join('\n') )}}\n{{ _vault_private_key.privatekey }}\n"
+        dest: "{{ cert.base_path | default('') }}/{{ cert.concat_fullchain_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0600
+      when: cert.concat_fullchain_path is defined
+
+    - name: Generate PKCS#12 file
+      ansible.builtin.shell:
+        cmd: "openssl pkcs12 -export -out {{ cert.base_path | default('') }}/{{ cert.p12_path }} -inkey {{ cert.base_path | default('') }}/{{ cert.key_path }} -in {{ cert.base_path | default('') }}/{{ cert.cert_path }} -passout pass:{{ cert.p12_password | default('') }}"
+      when: cert.p12_path is defined and cert.key_path is defined and cert.cert_path is defined
+      no_log: true
+
+    - name: Set permissions on p12
+      ansible.builtin.file:
+        path: "{{ cert.base_path | default('') }}/{{ cert.p12_path }}"
+        state: file
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0600
+      when: cert.p12_path is defined and cert.key_path is defined and cert.cert_path is defined
+
+  when: not _cert_file.stat.exists or not _cert_info.valid_at.duration or ( cert.force_renew is defined and cert.force_renew )

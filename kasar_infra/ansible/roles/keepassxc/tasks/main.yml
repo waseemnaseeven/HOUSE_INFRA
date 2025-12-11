@@ -1,0 +1,27 @@
+---
+- name: Ensure Homebrew present (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  community.general.homebrew:
+    state: present
+
+- name: Install KeePassXC (macOS, cask)
+  when: ansible_facts.os_family == "Darwin"
+  community.general.homebrew_cask:
+    name: "{{ keepassxc_package_name }}"
+    state: present
+
+- name: Install KeePassXC (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  become: true
+  package:
+    name: "{{ keepassxc_package_name }}"
+    state: present
+    update_cache: "{{ 'true' if ansible_facts.os_family == 'Debian' else omit }}"
+
+- name: Create KeePass vault directory
+  file:
+    path: "{{ vault_dir }}"
+    state: directory
+    mode: "0700"
+
+

@@ -1,0 +1,116 @@
+---
+# - name: Check if binary exist
+#   stat:
+#     path: "{{ node_exporter_binary }}"
+#   register: binary_file
+
+# - name: Check if config exist
+#   stat:
+#     path: "{{ node_exporter_install_dir }}"
+#   register: config_folder
+
+# - name: Installing common dependencies
+#   ansible.builtin.apt:
+#     name:
+#       - apt-transport-https
+#       - software-properties-common
+#       - wget
+#       - openssl
+#     state: present
+#     update_cache: yes
+
+- name: Add group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: true
+    state: present
+
+- name: Add user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+    state: present
+
+- name: Register node_exporter version
+  ansible.builtin.lineinfile:
+    path: /var/versions
+    regexp: "^node_exporter="
+    create: true
+    line: "node_exporter={{ node_exporter_version }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: binary_version
+
+- name: Managing node exporter
+  when: binary_version.changed or (node_exporter_force_install | default(false))
+  block:
+    - name: Create temporary build directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: node_exporter
+      register: tempfolder_node_exporter
+
+    - name: Download node_exporter
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.{{ node_exporter_os }}-{{ node_exporter_cpu_arch }}.tar.gz"
+        dest: "{{ tempfolder_node_exporter.path }}"
+
+    - name: Copy node exporter binary
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ tempfolder_node_exporter.path }}/node_exporter-{{ node_exporter_version }}.{{ node_exporter_os }}-{{ node_exporter_cpu_arch }}/node_exporter"
+        dest: "{{ node_exporter_binary }}"
+        owner: "{{ node_exporter_user }}"
+        group: "{{ node_exporter_group }}"
+        mode: "0100"
+      notify:
+        - Restart node_exporter
+
+    - name: Remove temp folder
+      ansible.builtin.file:
+        path: "{{ tempfolder_node_exporter.path }}"
+        state: absent
+
+  rescue:
+    - name: "Registering node_exporter failure"
+      ansible.builtin.lineinfile:
+        path: /var/versions
+        regexp: "^node_exporter="
+        line: "node_exporter=failure"
+
+    - name: Remove temp folder
+      ansible.builtin.file:
+        path: "{{ tempfolder_node_exporter.path }}"
+        state: absent
+
+    - name: Force failure
+      ansible.builtin.fail:
+        msg: "Installation of node exporter failed."
+
+- name: Creating config folder
+  ansible.builtin.file:
+    path: "{{ node_exporter_config_dir }}"
+    state: directory
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "0700"
+
+- name: Creating textfile folder if required
+  ansible.builtin.file:
+    path: "{{ node_exporter_textfile_dir }}"
+    state: "{{ 'directory' if node_exporter_textfile_collector_enabled else 'absent' }}"
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "0700"
+
+- name: Changing the owner of the node_exporter binary
+  ansible.builtin.file:
+    path: "{{ node_exporter_binary }}"
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_group }}"
+    mode: "0100"

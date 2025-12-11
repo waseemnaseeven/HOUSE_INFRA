@@ -1,0 +1,108 @@
+---
+- name: Add group
+  ansible.builtin.group:
+    name: "{{ prometheus_group }}"
+    system: yes
+    state: present
+
+- name: Create user for prometheus
+  ansible.builtin.user:
+    name: "{{ prometheus_user }}"
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+
+- name: Register prometheus version
+  ansible.builtin.lineinfile:
+    path: /var/versions
+    regexp: "^prometheus="
+    create: true
+    line: "prometheus={{ prometheus_version }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: binary_version
+
+- name: Managing prometheus
+  when: binary_version.changed or (prometheus_force_install | default(false))
+  block:
+    - name: Create temporary build directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: prometheus
+      register: tempfolder_prometheus
+
+    - name: Download prometheus
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        dest: "{{ tempfolder_prometheus.path }}"
+
+    - name: Copy prometheus binary
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ tempfolder_prometheus.path }}/prometheus-{{ prometheus_version }}.linux-amd64/prometheus"
+        dest: "{{ prometheus_binary }}"
+        owner: "{{ prometheus_user }}"
+        group: "{{ prometheus_group }}"
+        mode: "0100"
+      notify:
+        - Restart prometheus
+
+    - name: Remove temp folder
+      ansible.builtin.file:
+        path: "{{ tempfolder_prometheus.path }}"
+        state: absent
+  rescue:
+    - name: "Registering prometheus failure"
+      ansible.builtin.lineinfile:
+        path: /var/versions
+        regexp: "^prometheus="
+        line: "prometheus=failure"
+
+    - name: Remove temp folder
+      ansible.builtin.file:
+        path: "{{ tempfolder_prometheus.path }}"
+        state: absent
+
+    - name: Force failure
+      ansible.builtin.fail:
+        msg: "Installation of prometheus failed."
+
+- name: Creating config folder
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}"
+    state: directory
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0700"
+
+- name: Creating rules folder
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}/rules"
+    state: directory
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0700"
+
+- name: Changing the owner of the prometheus binary
+  ansible.builtin.file:
+    path: "{{ prometheus_binary }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: "0100"
+
+- name: Changing the owner of the prometheus pathes
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+  loop: "{{ prometheus_pathes_to_own }}"
+
+- name: Creating data path
+  ansible.builtin.file:
+    path: "{{ prometheus_storage_path }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    state: directory
+    mode: "0700"

@@ -1,0 +1,30 @@
+---
+- name: Include remove tasks
+  ansible.builtin.include_tasks: remove.yml
+  tags: remove
+  when: "'remove' in ansible_run_tags"
+
+- name: Include install tasks
+  ansible.builtin.include_tasks: install.yml
+  tags: install
+  when: "'remove' not in ansible_run_tags"
+
+- name: Include initialization tasks
+  ansible.builtin.include_tasks: init.yml
+  tags: init
+  when: "'remove' not in ansible_run_tags"
+
+- name: Include PKI setup tasks
+  ansible.builtin.include_tasks: pki.yml
+  tags: pki
+  when:
+    - vault_pki_enabled
+    - "'remove' not in ansible_run_tags"
+
+- name: Include KV setup tasks
+  ansible.builtin.include_tasks: kv.yml
+  tags: kv
+  when:
+    - vault_kv_enabled
+    - "'remove' not in ansible_run_tags"
+

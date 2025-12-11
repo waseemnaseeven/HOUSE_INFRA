@@ -1,0 +1,5 @@
+---
+- name: restart chrony client
+  service:
+    name: chrony
+    state: restarted

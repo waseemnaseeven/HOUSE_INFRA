@@ -1,0 +1,4 @@
+- name: Installing keycloak and postgres with docker
+  hosts: keycloak
+  roles:
+    - keycloak

@@ -1,0 +1,61 @@
+# OpenVPN Server Configuration
+# Managed by Ansible - Do not edit manually
+
+# Network settings
+port {{ openvpn_port }}
+proto {{ openvpn_protocol }}
+dev tun
+
+# Certificates and keys
+ca {{ openvpn_ca_cert }}
+cert {{ openvpn_server_cert }}
+key {{ openvpn_server_key }}
+dh {{ openvpn_dh_params }}
+
+# TLS authentication
+tls-auth {{ openvpn_ta_key }} 0
+key-direction 0
+
+# Network topology
+server {{ openvpn_server_network }} {{ openvpn_server_netmask }}
+topology subnet
+
+# Client configuration
+ifconfig-pool-persist /var/log/openvpn/ipp.txt
+keepalive {{ openvpn_keepalive_ping }} {{ openvpn_keepalive_timeout }}
+max-clients {{ openvpn_max_clients }}
+
+# Cryptography
+cipher {{ openvpn_cipher }}
+auth {{ openvpn_auth }}
+
+# Compression
+compress lz4-v2
+push "compress lz4-v2"
+
+# Routing - push routes to clients
+{% for route in openvpn_push_routes %}
+push "route {{ route }}"
+{% endfor %}
+
+# DNS - push DNS servers to clients
+{% for dns in openvpn_push_dns %}
+push "dhcp-option DNS {{ dns }}"
+{% endfor %}
+
+# Privileges
+user nobody
+group nogroup
+
+# Persistence
+persist-key
+persist-tun
+
+# Logging
+status /var/log/openvpn/openvpn-status.log
+log-append /var/log/openvpn/openvpn.log
+verb 3
+mute 20
+
+# Explicit exit notify
+explicit-exit-notify 1

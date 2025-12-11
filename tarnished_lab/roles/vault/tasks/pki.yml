@@ -1,0 +1,200 @@
+---
+- name: Load root token
+  ansible.builtin.slurp:
+    src: "{{ vault_root_token_file }}"
+  register: root_token_file
+
+- name: Set root token fact
+  ansible.builtin.set_fact:
+    vault_root_token: "{{ root_token_file.content | b64decode | trim }}"
+
+- name: Check if PKI engine is enabled
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_pki_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    status_code: [200, 400]
+  register: pki_mount_check
+
+- name: Enable PKI secrets engine
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_pki_path }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      type: "pki"
+      config:
+        max_lease_ttl: "{{ vault_pki_max_lease_ttl }}"
+    status_code: [200, 204]
+  when: pki_mount_check.status == 400
+
+- name: Tune PKI engine max lease TTL
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_pki_path }}/tune"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      max_lease_ttl: "{{ vault_pki_max_lease_ttl }}"
+    status_code: [200, 204]
+
+- name: Check if root CA exists
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_path }}/cert/ca"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    status_code: [200, 400, 404]
+  register: root_ca_check
+
+- name: Generate root CA
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_path }}/root/generate/internal"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      common_name: "{{ vault_pki_ca_common_name }}"
+      ttl: "{{ vault_pki_max_lease_ttl }}"
+    status_code: [200, 204]
+  register: root_ca_output
+  when: root_ca_check.status in [400, 404]
+
+- name: Save root CA certificate
+  ansible.builtin.copy:
+    content: "{{ root_ca_output.json.data.certificate }}"
+    dest: "{{ vault_config_dir }}/tls/ca.crt"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0644'
+  when: root_ca_check.status == 404 and root_ca_output.json.data.certificate is defined
+
+- name: Configure CA and CRL URLs
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_path }}/config/urls"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      issuing_certificates: "{{ vault_api_addr }}/v1/{{ vault_pki_path }}/ca"
+      crl_distribution_points: "{{ vault_api_addr }}/v1/{{ vault_pki_path }}/crl"
+    status_code: [200, 204]
+
+# Intermediate CA
+- name: Check if intermediate PKI engine is enabled
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_pki_int_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    status_code: [200, 400]
+  register: pki_int_mount_check
+
+- name: Enable intermediate PKI secrets engine
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_pki_int_path }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      type: "pki"
+      config:
+        max_lease_ttl: "{{ vault_pki_int_max_lease_ttl }}"
+    status_code: [200, 204]
+  when: pki_int_mount_check.status == 400
+
+- name: Tune intermediate PKI engine max lease TTL
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_pki_int_path }}/tune"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      max_lease_ttl: "{{ vault_pki_int_max_lease_ttl }}"
+    status_code: [200, 204]
+
+- name: Check if intermediate CA exists
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_int_path }}/cert/ca"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    status_code: [200, 400, 404]
+  register: int_ca_check
+
+- name: Generate intermediate CSR
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_int_path }}/intermediate/generate/internal"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      common_name: "{{ vault_pki_int_common_name }}"
+    status_code: [200, 204]
+  register: int_csr_output
+  when: int_ca_check.status in [400, 404]
+
+- name: Sign intermediate CSR with root CA
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_path }}/root/sign-intermediate"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      csr: "{{ int_csr_output.json.data.csr }}"
+      format: "pem_bundle"
+      ttl: "{{ vault_pki_int_max_lease_ttl }}"
+    status_code: [200, 204]
+  register: int_cert_output
+  when: int_ca_check.status in [400, 404]
+
+- name: Set signed intermediate certificate
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ vault_pki_int_path }}/intermediate/set-signed"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      certificate: "{{ int_cert_output.json.data.certificate }}"
+    status_code: [200, 204]
+  when: int_ca_check.status in [400, 404]
+
+- name: Create PKI roles
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/{{ item.path }}/roles/{{ item.name }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      allowed_domains: "{{ item.allowed_domains }}"
+      allow_subdomains: "{{ item.allow_subdomains }}"
+      allow_bare_domains: "{{ item.allow_bare_domains }}"
+      allow_ip_sans: "{{ item.allow_ip_sans }}"
+      server_flag: "{{ item.server_flag }}"
+      client_flag: "{{ item.client_flag }}"
+      max_ttl: "{{ item.max_ttl }}"
+      key_type: "rsa"
+      key_bits: 2048
+    status_code: [200, 204]
+  loop: "{{ vault_pki_roles }}"
+  when: vault_pki_enabled
+
+- name: Display PKI setup completion
+  ansible.builtin.debug:
+    msg:
+      - "PKI setup completed successfully!"
+      - "Root CA: {{ vault_pki_path }}"
+      - "Intermediate CA: {{ vault_pki_int_path }}"
+      - "Root CA certificate: {{ vault_config_dir }}/tls/ca.crt"

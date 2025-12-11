@@ -1,0 +1,6 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for keepalived
+keepalived_install_dir: "/etc/keepalived"
+keepalived_password: "changeme"
+keepalived_script: "/usr/local/bin/checkthanos.sh"

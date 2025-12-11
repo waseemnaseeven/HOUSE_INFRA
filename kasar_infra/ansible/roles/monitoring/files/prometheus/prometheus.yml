@@ -1,0 +1,83 @@
+global: 
+  scrape_interval: "1m"
+  scrape_timeout: "10s"
+  evaluation_interval: "1m"
+  external_labels:
+    replica: "prom-1"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - "alertmanager:9093"
+      scheme: http
+      api_version: v2
+      timeout: 10s
+
+rule_files:
+  - "rules/prometheus_rules.yml"
+  - "rules/postgresql_rules.yml"
+  - "rules/node_exporter_rules.yml"
+  - "rules/containers_rules.yml"
+  - "rules/kubernetes_rules.yml"
+  - "rules/traefik_rules.yml"
+  - "rules/blackbox_exporter.yml"
+  - "rules/vault.yml"
+  - "rules/keycloak.yml"
+  - "rules/oauth2-proxy.yml"
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - "prometheus:9090"
+
+  - job_name: grafana
+    static_configs:
+      - targets:
+          - "grafana:4000"
+
+  - job_name: alertmanager
+    static_configs:
+      - targets:
+          - "alertmanager:9093"
+  
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - "postgres_exporter:9187"
+  
+  - job_name: karma
+    static_configs:
+      - targets:
+        - "karma:8080"
+
+  - job_name: "snak_server"
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: 
+          - "nginx:9234"
+  
+  - job_name: 'cloudwatch'
+    static_configs:
+      - targets: 
+        - cloudwatch-exporter:9106
+
+      
+  - job_name: "blackbox_http"
+    metrics_path: /probe
+    params:
+      module: [ "http_2xx" ]
+    static_configs:
+      - targets: 
+          - "http://host.docker.internal:3002"  # ou l’URL de prod
+    relabel_configs:
+      # passe la target en paramètre ?target=
+      - source_labels: [__address__]
+        target_label: __param_target
+      # renomme instance pour le labeling
+      - source_labels: [__param_target]
+        target_label: instance
+      # envoie la requête au Blackbox exporter
+      - target_label: __address__
+        replacement: blackbox_exporter:9115

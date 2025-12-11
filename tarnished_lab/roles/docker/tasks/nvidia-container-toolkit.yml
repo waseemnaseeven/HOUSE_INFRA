@@ -1,0 +1,160 @@
+- name: Ajout de la clef du repo nvidia-container-toolkit
+  ansible.builtin.copy:
+    # https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xddcae044f796ecb0
+    content: |
+      -----BEGIN PGP PUBLIC KEY BLOCK-----
+      Comment: Hostname:
+      Version: Hockeypuck 2.2
+
+      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
+      zoQ2ZAF0do5h4TMR21THrO8vd9ud27CJtAvPWRA=
+      =bwyt
+      -----END PGP PUBLIC KEY BLOCK-----
+    dest: /etc/apt/keyrings/nvidia-container-toolkit.asc
+    mode: "0644"
+
+- name: "Add nvidia-container-toolkit repo"
+  ansible.builtin.deb822_repository:
+    types: "deb"
+    uris: https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH)
+    suites: "/"
+    signed_by: /etc/apt/keyrings/nvidia-container-toolkit.asc
+    name: "nvidia-container-toolkit"
+  register: nvidia_container_toolkit_repo
+
+- name: Update cache
+  ansible.builtin.apt:
+    update_cache: true
+  when: nvidia_container_toolkit_repo.changed
+
+- name: Install nvidia-container-toolkit
+  ansible.builtin.apt:
+    name:
+      - nvidia-container-toolkit
+    state: present
+    update_cache: true
+    cache_valid_time: 604800 # 7*24*3600
+
+- name: Configure nvidia container toolkit
+  ansible.builtin.template:
+    src: nvidia-container-runtime_config.toml.j2
+    dest: "/etc/nvidia-container-runtime/config.toml"
+    owner: root
+    group: root
+    mode: "0644"

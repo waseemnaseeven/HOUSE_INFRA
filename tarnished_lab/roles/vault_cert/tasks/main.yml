@@ -1,0 +1,10 @@
+- name: Fail if VAULT_ADDR not defined
+  ansible.builtin.fail:
+    msg: "Env var VAULT_ADDR not defined - did you load vault env vars ?"
+  when: lookup('ansible.builtin.env', 'VAULT_ADDR') | length == 0
+
+- name: Loop over cert.yml with each certificates
+  include_tasks: cert.yml
+  loop: "{{ vault_cert }}"
+  loop_control:
+    loop_var: cert

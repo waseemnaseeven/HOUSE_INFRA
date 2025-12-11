@@ -1,0 +1,38 @@
+- name: Installing and Deploying 
+  hosts: localhost
+  tasks:
+    - name: Install OpenTofu via homebrew
+      homebrew:
+        name: opentofu
+        state: present
+
+    - name: Add tf alias to bashrc
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.bashrc"
+        line: "alias tf='tofu'"
+        create: yes
+
+    - name: Add tf alias to zshrc
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.zshrc"
+        line: "alias tf='tofu'"
+        create: yes
+
+    - name: Install awscli via homebrew
+      homebrew:
+        name: awscli
+        state: present
+
+    - name: Check AWS CLI version
+      command: aws --version
+      register: aws_version_output
+      changed_when: false
+
+    - name: Print AWS CLI version
+      debug:
+        var: aws_version_output.stdout
+
+    - name: Install ArgoCD via homebrew
+      homebrew:
+        name: argocd
+        state: present

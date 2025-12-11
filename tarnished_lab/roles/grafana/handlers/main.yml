@@ -1,0 +1,10 @@
+#SPDX-License-Identifier: MIT-0
+---
+# handlers grafana
+- name: Restart grafana
+  ansible.builtin.systemd_service:
+    name: grafana-server.service
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+

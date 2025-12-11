@@ -1,0 +1,7 @@
+.vscode
+
+# Vault secrets and backups (NEVER commit these!)
+tarnished_lab/vault-backup/
+**/root_token
+**/unseal_keys.json
+*.tar.gz.gpg

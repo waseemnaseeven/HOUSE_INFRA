@@ -1,0 +1,22 @@
+---
+- name: "Install and config prometheus"
+  when: prometheus_enabled
+  block:
+    - name: "Install prometheus"
+      ansible.builtin.include_tasks: install.yml
+
+    - name: "Deploying config file for prometheus"
+      ansible.builtin.include_tasks: config.yml
+
+- name: "Install and config thanos sidecar"
+  when: prometheus_thanos_enabled
+  block:
+    - name: "Install thanos"
+      ansible.builtin.include_tasks: thanos_install.yml
+
+    - name: "Deploying config file for thanos sidecar"
+      ansible.builtin.include_tasks: thanos_config.yml
+
+- name: "Remove prometheus or thanos"
+  when: not prometheus_enabled or not prometheus_thanos_enabled
+  ansible.builtin.include_tasks: remove.yml

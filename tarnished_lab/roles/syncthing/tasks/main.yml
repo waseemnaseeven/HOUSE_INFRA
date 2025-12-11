@@ -1,0 +1,86 @@
+---
+# ===========================
+# MacOS / MACINTOSHEUUU
+# ===========================
+
+- name: Ensure Homebrew present (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  community.general.homebrew:
+    state: present
+
+- name: Install Syncthing (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  community.general.homebrew:
+    name: "{{ syncthing_package_name }}"
+    state: present
+
+- name: Check if Syncthing service is already started (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  command: brew services list
+  register: syncthing_services
+  changed_when: false
+
+- name: Start Syncthing service (macOS)
+  when:
+    - ansible_facts.os_family == "Darwin"
+    - "'syncthing' in syncthing_services.stdout"
+    - "'started' not in syncthing_services.stdout"
+  command: brew services start syncthing
+
+- name: Enable Syncthing service at boot (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  command: brew services restart syncthing
+  changed_when: false
+
+# ===========================
+# Linux (Debian / RedHat)
+# ===========================
+
+- name: Install Syncthing (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  become: true
+  package:
+    name: "{{ syncthing_package_name }}"
+    state: present
+    update_cache: "{{ 'true' if ansible_facts.os_family == 'Debian' else omit }}"
+
+- name: Ensure systemd user dir exists (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  file:
+    path: "{{ ansible_env.HOME }}/.config/systemd/user"
+    state: directory
+    mode: "0700"
+
+- name: Install Syncthing user service unit (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  copy:
+    dest: "{{ ansible_env.HOME }}/.config/systemd/user/{{ syncthing_service_name }}.service"
+    mode: "0644"
+    content: "{{ syncthing_systemd_unit }}"
+
+- name: Enable user lingering so Syncthing runs without login (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  become: true
+  command: "loginctl enable-linger {{ ansible_user_id }}"
+  changed_when: false
+
+- name: daemon-reload (user) (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  systemd:
+    daemon_reload: true
+    scope: user
+
+- name: Enable & start Syncthing (user) (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  systemd:
+    name: "{{ syncthing_service_name }}.service"
+    scope: user
+    enabled: true
+    state: started
+
+- name: Ensure Syncthing config dir exists
+  file:
+    path: "{{ syncthing_config_dir }}"
+    state: directory
+    mode: "0700"
+

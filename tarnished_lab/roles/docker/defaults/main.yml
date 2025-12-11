@@ -1,0 +1,23 @@
+---
+# defaults file for 
+cpu_arch: amd64
+docker_dns: []
+docker_iptables: true
+docker_ip6tables: false
+docker_ipv6_enabled: false
+docker_experimental: false
+
+docker_use_proxy: false
+
+docker_userns_remap_enabled: true
+docker_userns_remap_user: docker_remap
+docker_userns_remap_uid: "42768000"
+docker_userns_remap_gid: "42768000"
+
+docker_rootless_enabled: false
+docker_rootless_users: []
+docker_rootless_port_slirp4netns_enabled: false # https://docs.docker.com/engine/security/rootless/#docker-run--p-does-not-propagate-source-ip-addresses
+
+docker_nvidia_enabled: false
+# docker_rootless_users:
+#   - name: run_app1

@@ -1,0 +1,223 @@
+groups:
+  - name: SELF_NODE_EXPORTER
+    rules:
+      - alert: PrometheusNodeExporterJobDown
+        expr: up{job=~"node_exporter|monitoring_node_exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: " Service {{ $labels.instance }} is down"
+          description: "The service {{ $labels.instance }} (job: {{ $labels.job }}) has been down for more than 5 minutes.\n VALUE = {{ $value  }}\n "
+
+  - name: CPU
+    rules:
+      - alert: HighCpuLoad
+        # Moyenne, pour chaque instance, des taux (rate, donc la vitesse d'augmentation de la métrique) de temps CPU non-idle (ne considérant QUE le temps ou le CPU était actif), sur une fenetre de 5mins.
+        expr: (avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))) > .80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host high CPU load (instance {{ $labels.instance }})
+          description: "CPU load has been over 80% for more than 5minutes\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: LoadAverageCPU
+        # Charge moyenne du systeme sur 1,5 ou 15 mins. Ces valeurs représentent le nb moyen de processus actifs ou en attente d'exécution sur ces intervalles. Peut indiquer la saturation CPU sur la durée.
+        expr: node_load1 > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: High pressure for the CPU (instance {{ $labels.instance }})
+          description: "Load average CPU\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostCpuStealNoisyNeighbor
+        # Surveille le pourcentage (* 100) moyen de CPU "steal" par instance sur une fenêtre de 5 minutes. Si ce pourcentage dépasse 10% (> 10), cela signifie qu'une part significative du temps CPU est détournée (généralement à cause d'une surcharge sur l'hôte ou d'un problème avec une instance voisine trop gourmande), ce qui peut impacter négativement les performances des machines virtuelles.
+        expr: avg by(instance) (rate(node_cpu_seconds_total{mode="steal"}[5m])) * 100 > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host CPU steal noisy neighbor (instance {{ $labels.instance }})
+          description: "CPU steal is > 10%. A noisy neighbor is killing VM performances.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostCpuHighIowait
+        # Moyenne du taux iowait sur 5minutes si dépasse 10% du temps CPU est passé en attente I/O.
+        expr: avg by (instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) > .10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host CPU high iowait (instance {{ $labels.instance }})
+          description: "CPU iowait > 10%. Your CPU is idling waiting for storage to respond.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostPhysicalComponentTooHot
+        # Si True, cela signifie que le composant fonctionne à une température plus élevée que jamais auparavant
+        expr: node_hwmon_temp_celsius > node_hwmon_temp_max_celsius
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host physical component too hot (instance {{ $labels.instance }})
+          description: "Physical hardware component too hot\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostNodeOvertemperatureAlarm
+        # Surveille les alarmes de température sur un noeud physique et déclenche une alerte si une alarme de température critique ou non critique est activé
+        expr: ((node_hwmon_temp_crit_alarm_celsius == 1) or (node_hwmon_temp_alarm == 1))
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host node overtemperature alarm (instance {{ $labels.instance }})
+          description: "Physical node temperature alarm triggered\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: MEMORY
+    rules:
+      - alert: HostOutOfMemory
+        # Proportion de mémoire disponible par rapport a la mémoire totale. Ex: 1 Go / 8 Go = 0.125 (soit 12,5%).
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < .10)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host out of memory (instance {{ $labels.instance }})
+          description: " Insuficience memory.\n VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HighSwapUsage
+        # Une utilisation élevé de la mémoire Swap peut indiquer que le systeme manque de mémoire RAM et doit recourir au swap, ce qui entraine des ralentissements de performances
+        expr: (node_memory_SwapTotal_bytes / node_memory_SwapFree_bytes < .20)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: High swap usage (instance {{ $labels.instance }})
+          description: " Swap free is less than 20% for over 30minutes.\n VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostMemoryUnderMemoryPressure
+        # Alerte si, durant les 5 dernières minutes, le taux de fautes de pages majeures (les chargements de pages depuis le disque) dépasse 1000 évènements par seconde.
+        expr: (rate(node_vmstat_pgmajfault[5m]) > 1000)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host memory under memory pressure (instance {{ $labels.instance }})
+          description: "The node is under heavy memory pressure. High rate of loading memory pages from disk.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: NETWORK
+    rules:
+      # Mesure du débit réseau en I/O, le trafic.
+      - alert: HostUnusualNetworkThroughputIn
+        # Comparaison du débit mesuré a la capacité de l'interface, si > 80% du débit max
+        expr: ((rate(node_network_receive_bytes_total[5m]) / on(instance, device) node_network_speed_bytes) > .80)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual network throughput in (instance {{ $labels.instance }})
+          description: "Host receive bandwidth is high (>80%).\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostUnusualNetworkThroughputOut
+        # Calcul le taux d'octets transmis sur interface réseau durant les 5 derniere minutes, En divisant le taux de transmission par la capacité maximale de l'interface, on obtient le pourcentage d'utilisation de la bande passante disponible.
+        expr: ((rate(node_network_transmit_bytes_total[5m]) / on(instance, device) node_network_speed_bytes) > .80)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual network throughput out (instance {{ $labels.instance }})
+          description: "Host transmit bandwidth is high (>80%)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostNetworkReceiveErrors
+        # Calcule la proportion d'erreurs par rapport au nb total de paquets reçus durant cette période de 2mins. Un taux d'erreurs "normal" est très généralement quasi nul dans un réseau bien fonctionnant. Au delà de 1%, c'est une anomalie.
+        expr: (rate(node_network_receive_errs_total[2m]) / rate(node_network_receive_packets_total[2m]) > 0.01)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host Network Receive Errors (instance {{ $labels.instance }})
+          description: "Host {{ $labels.instance }} has encountered {{ printf \"%.0f\" $value }} receive errors in the last two minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostNetworkTransmitErrors
+        # En divisant le taux des erreurs de transmission par le taux des paquets transmis, on obtient la proportion d'erreurs parmi l'ensemble des paquets envoyés
+        expr: (rate(node_network_transmit_errs_total[2m]) / rate(node_network_transmit_packets_total[2m]) > 0.01)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host Network Transmit Errors (instance {{ $labels.instance }})
+          description: "Host {{ $labels.instance }} has encountered {{ printf \"%.0f\" $value }} transmit errors in the last two minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: STORAGE
+    rules:
+      - alert: HostUnusualDiskReadRate
+        # Calcul utilisation du disque, si proche de 1 alors disque constamment occupé a un tres haut pourcentage, signe de saturation du sous-système disque (les opérations en fil d'attente s'accumulent possiblement)
+        expr: (rate(node_disk_io_time_seconds_total[5m]) > .90)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual disk read rate (instance {{ $labels.instance }})
+          description: "Disk is too busy (IO wait > 90%).\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostUnusualDiskWriteLatency
+        # Alerte si la latence moynne d'écriture sur disque dépasse 100ms tout en s'assurant qu'il y a une activité d'écriture en cours
+        expr: (rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]) > 0.1 and rate(node_disk_writes_completed_total[1m]) > 0)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual disk write latency (instance {{ $labels.instance }})
+          description: "Disk latency is growing (write operations > 100ms)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostOutOfDiskSpace
+        # Alerte si espace disque disponible est < 10% de la taille totale du systeme de fichier, seulement pour les systemes de fichiers qui ne sont pas en lecture seule
+        expr: (node_filesystem_avail_bytes{fstype!~"^(fuse.*|tmpfs|cifs|nfs)"} / node_filesystem_size_bytes < .10 and on (instance, device, mountpoint) node_filesystem_readonly == 0)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host out of disk space (instance {{ $labels.instance }})
+          description: "Disk is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostDiskMayFillIn24Hours
+        # La fonction predict_linear est utilisée pour prédire la valeur future d'une métrique en fonction de son comportement passé.
+        # Calcule une projection linéaire pour les 86 400 secondes suivantes (soit 24 heures).
+        # Declenche une alerte si, selon les tendances actuelles d'utilisation du disque, l'espace disponible sera épuisé dans les prochaines 24h.
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"^(fuse.*|tmpfs|cifs|nfs)"}[1h], 86400) <= 0 and node_filesystem_avail_bytes > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host disk may fill in 24 hours (instance {{ $labels.instance }})
+          description: "Filesystem will likely run out of space within the next 24 hours.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostUnusualDiskIo
+        # Utilisation constante a + de 80% en moyenne sur 5mins peut indiquer un disque surchargé et donc des performances minimes
+        expr: rate(node_disk_io_time_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual disk IO (instance {{ $labels.instance }})
+          description: "Disk usage >80%. Check storage for issues or increase IOPS capabilities. Check storage for issues.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostOutOfInodes
+        # Alerte si un système de fichiers a moins de 10% d'inodes libres tout en verifiant qu'il n'est pas monté en lecture seule. Si un système de fichiers manque d'inodes, il ne pourra plus créer de nouveaux fichiers.
+        expr: (node_filesystem_files_free / node_filesystem_files < .10 and ON (instance, device, mountpoint) node_filesystem_readonly == 0)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host out of inodes (instance {{ $labels.instance }})
+          description: "Disk is almost running out of available inodes (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: SYSTEMD
+    rules:
+      - alert: HostSystemdServiceCrashed
+        expr: (node_systemd_unit_state{state="failed"} == 1)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host systemd service crashed (instance {{ $labels.instance }})
+          description: "systemd service crashed\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

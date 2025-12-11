@@ -1,0 +1,96 @@
+---
+- name: Display removal warning
+  ansible.builtin.debug:
+    msg:
+      - "========================================="
+      - "  REMOVING VAULT - ALL DATA WILL BE LOST"
+      - "========================================="
+      - "This will delete:"
+      - "  - Vault service and binary"
+      - "  - All Vault data and Raft storage"
+      - "  - Root token and unseal keys"
+      - "  - PKI certificates and secrets"
+      - "  - Configuration files"
+
+- name: Stop Vault service
+  ansible.builtin.systemd:
+    name: vault
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: Reload systemd to remove Vault service
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Remove Vault binary
+  ansible.builtin.file:
+    path: "{{ vault_bin_path }}"
+    state: absent
+
+- name: Remove Vault systemd unit
+  ansible.builtin.file:
+    path: "{{ vault_systemd_unit }}"
+    state: absent
+
+- name: Remove Vault configuration directory (including keys!)
+  ansible.builtin.file:
+    path: "{{ vault_config_dir }}"
+    state: absent
+
+- name: Remove Vault data directory contents (Raft storage)
+  ansible.builtin.shell: rm -rf {{ vault_data_dir }}/*
+  ignore_errors: true
+
+- name: Remove Vault data directory (Raft storage)
+  ansible.builtin.file:
+    path: "{{ vault_data_dir }}"
+    state: absent
+
+- name: Remove Vault TLS directory
+  ansible.builtin.file:
+    path: "/etc/vault.d/tls"
+    state: absent
+
+- name: Remove any remaining /etc/vault.d directory
+  ansible.builtin.file:
+    path: "/etc/vault.d"
+    state: absent
+
+- name: Remove Vault user
+  ansible.builtin.user:
+    name: "{{ vault_user }}"
+    state: absent
+    remove: yes
+    force: yes
+  ignore_errors: true
+
+- name: Remove Vault group
+  ansible.builtin.group:
+    name: "{{ vault_group }}"
+    state: absent
+  ignore_errors: true
+
+- name: Remove Vault temp files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/vault.zip"
+    - "/tmp/vault"
+
+- name: Reload systemd after cleanup
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Display removal completion
+  ansible.builtin.debug:
+    msg:
+      - "✓ Vault has been completely removed"
+      - "  All data, keys, and configuration deleted"
+      - "  System is ready for fresh Vault installation"
+      - ""
+      - "To reinstall, run:"
+      - "  ansible-playbook -i inventory/hosts.yml playbook/openvpn.yml"
+
+

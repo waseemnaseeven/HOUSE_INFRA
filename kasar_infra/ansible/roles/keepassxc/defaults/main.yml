@@ -1,0 +1,8 @@
+keepassxc_package_name: keepassxc
+
+vault_dir: "{{ ansible_env.HOME }}/KeePass"
+vault_file: "{{ vault_dir }}/vault.kdbx"
+
+# (roles/keepassxc/files/vault.kdbx)
+seed_vault: true
+seed_vault_src: vault.kdbx

@@ -1,0 +1,22 @@
+---
+- name: Install docker
+  include_tasks: docker.yml
+
+- name: Install tools
+  include_tasks: tools.yml
+
+- name: Install kind
+  include_tasks: kind.yml
+
+- name: Install helm
+  include_tasks: helm.yml
+
+- name: Install apps
+  include_tasks: deploy.yml
+  tags:
+    - deploy
+
+- name: Install argocd
+  include_tasks: argocd.yml
+  tags:
+    - argocd

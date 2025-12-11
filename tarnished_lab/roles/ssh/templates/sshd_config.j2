@@ -1,0 +1,102 @@
+# {{ ansible_managed }}
+
+Port {{ sshd_port }}
+
+{% if sshd_allow_groups != "" %}
+AllowGroups {{ sshd_allow_groups }}
+{% endif %}
+
+AllowTcpForwarding {{ sshd_allow_tcp_forwarding }}
+
+AllowAgentForwarding {{ sshd_allow_agent_forwarding }}
+
+# Disable override of SSH environment variables (STIG V-71957)
+PermitUserEnvironment no
+
+# Limit idle connection to 1200 instead of 600s as STIG V-72237 recommend in order to make admin work easy
+ClientAliveInterval 3600
+ClientAliveCountMax 0
+
+# Limit login time to 30s
+LoginGraceTime 30
+
+# Print last logon at connection (STIG V-72245)
+PrintLastLog yes
+
+{% if sshd_log_level != "" %}
+LogLevel {{ sshd_log_level }}
+{% endif %}
+
+# Set maximum authentication tries to 5
+MaxAuthTries 5
+
+X11Forwarding {{ sshd_x11_forwading }}
+
+# Disable rhosts (unsecure authentication method) (STIG V-72243)
+IgnoreRhosts yes
+
+PubkeyAuthentication {{ sshd_pubkey }}
+
+PermitRootLogin {{ sshd_permit_root_login }}
+
+# Disable Kerberos authentication (STIG V-72261)
+KerberosAuthentication no
+
+# Disable GSSAPI authentication (STIG V-72259)
+GSSAPIAuthentication no
+
+# Strict mode checking of home directory configuration files
+StrictModes yes
+
+# Enable compression only after logon (STIG V-72267)
+Compression delayed
+
+# Disable authentication with account without password (STIG V-71939)
+PermitEmptyPasswords no
+
+PasswordAuthentication {{ sshd_password_authentication }}
+
+# Disallow authentication using known hosts authentication (STIG V-72249)
+IgnoreUserKnownHosts yes
+
+# Force SSH protocol to version 2 (SSHv1 has multiple vulnerabilities) (STIG V-72251)
+Protocol 2
+
+# Force host key algorithm to ed25519
+{% if sshd_sign_host_certificate %}
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostCertificate /etc/ssh/ssh_host_ecdsa_key-cert.pub
+HostKeyAlgorithms ecdsa-sha2-nistp521,ecdsa-sha2-nistp521-cert-v01@openssh.com,ecdsa-sha2-nistp256,ecdsa-sha2-nistp256-cert-v01@openssh.com
+{% endif %}
+
+{% if sshd_harden_crypto %}
+# Restrict cryptographic algorithms (STIG V-72253 & V-72221)
+MACs hmac-sha2-512,hmac-sha2-256
+Ciphers aes256-ctr,aes192-ctr,aes128-ctr
+KexAlgorithms diffie-hellman-group14-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,curve25519-sha256,curve25519-sha256@libssh.org
+{% endif %}
+
+AcceptEnv {{ sshd_acceptenv }}
+Subsystem	sftp	{{ sftp_path }}
+
+{% if sshd_client_ca_enabled %}
+# Enable signed keys authentication
+TrustedUserCAKeys {{ sshd_client_ca_path }}
+{% endif %}
+
+{% if sshd_authorizedprincipalsfile_enabled %}
+AuthorizedPrincipalsFile {{ sshd_authorizedprincipalsfile }}
+{% endif %}
+
+KbdInteractiveAuthentication no
+UsePAM yes
+
+{% for sshd_permitopen in sshd_permitopens %}
+PermitOpen {{ sshd_permitopen }}
+{% endfor %}
+
+{% if sshd_allow_users != "" %}
+AllowUsers {{ sshd_allow_users }}
+{% endif %}
+
+{{ sshd_custom_config }}

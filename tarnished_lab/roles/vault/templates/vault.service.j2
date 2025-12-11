@@ -1,0 +1,22 @@
+[Unit]
+Description=HashiCorp Vault - A tool for managing secrets
+Documentation=https://developer.hashicorp.com/vault/docs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User={{ vault_user }}
+Group={{ vault_group }}
+ExecStart={{ vault_bin_path }} server -config={{ vault_config_dir }}/config.hcl
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+Restart=on-failure
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+

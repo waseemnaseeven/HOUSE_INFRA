@@ -1,0 +1,139 @@
+---
+- name: Load Vault root token
+  ansible.builtin.slurp:
+    src: "/etc/vault.d/keys/root_token"
+  register: vault_token_file
+
+- name: Set Vault token fact
+  ansible.builtin.set_fact:
+    vault_token: "{{ vault_token_file.content | b64decode | trim }}"
+
+- name: Create client directories
+  ansible.builtin.file:
+    path: "{{ openvpn_client_dir }}/{{ item.name }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Generate client private keys
+  community.crypto.openssl_privatekey:
+    path: "{{ openvpn_client_dir }}/{{ item.name }}/client.key"
+    size: 2048
+    mode: '0600'
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Generate client CSRs
+  community.crypto.openssl_csr:
+    path: "{{ openvpn_client_dir }}/{{ item.name }}/client.csr"
+    privatekey_path: "{{ openvpn_client_dir }}/{{ item.name }}/client.key"
+    common_name: "{{ item.common_name }}"
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Read client CSR contents
+  ansible.builtin.slurp:
+    src: "{{ openvpn_client_dir }}/{{ item.name }}/client.csr"
+  register: client_csrs
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Sign client certificates with Vault
+  ansible.builtin.uri:
+    url: "http://{{ ansible_default_ipv4.address }}:8200/v1/pki_int/sign/openvpn-client"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      csr: "{{ item.content | b64decode }}"
+      common_name: "{{ openvpn_clients[ansible_loop.index0].common_name }}"
+      ttl: "8760h"
+    status_code: [200, 204]
+  loop: "{{ client_csrs.results }}"
+  loop_control:
+    extended: yes
+  register: client_certs
+  when: openvpn_clients | length > 0 and client_csrs.results is defined
+
+- name: Save client certificates
+  ansible.builtin.copy:
+    content: "{{ item.json.data.certificate }}"
+    dest: "{{ openvpn_client_dir }}/{{ openvpn_clients[ansible_loop.index0].name }}/client.crt"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ client_certs.results }}"
+  loop_control:
+    extended: yes
+  when: openvpn_clients | length > 0 and client_certs.results is defined
+
+- name: Copy CA cert to client directories
+  ansible.builtin.copy:
+    src: "{{ openvpn_ca_cert }}"
+    dest: "{{ openvpn_client_dir }}/{{ item.name }}/ca.crt"
+    owner: root
+    group: root
+    mode: '0644'
+    remote_src: yes
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Read CA certificate for embedding
+  ansible.builtin.slurp:
+    src: "{{ openvpn_ca_cert }}"
+  register: ca_cert_content
+  when: openvpn_clients | length > 0
+
+- name: Read TLS auth key for embedding
+  ansible.builtin.slurp:
+    src: "{{ openvpn_ta_key }}"
+  register: ta_key_content
+  when: openvpn_clients | length > 0
+
+- name: Read client certificates for embedding
+  ansible.builtin.slurp:
+    src: "{{ openvpn_client_dir }}/{{ item.name }}/client.crt"
+  register: client_cert_contents
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Read client private keys for embedding
+  ansible.builtin.slurp:
+    src: "{{ openvpn_client_dir }}/{{ item.name }}/client.key"
+  register: client_key_contents
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Generate client configuration files
+  ansible.builtin.template:
+    src: client.ovpn.j2
+    dest: "{{ openvpn_client_dir }}/{{ item.0.name }}/{{ item.0.name }}.ovpn"
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    client_name: "{{ item.0.name }}"
+    client_dir: "{{ openvpn_client_dir }}/{{ item.0.name }}"
+    ca_cert: "{{ ca_cert_content.content | b64decode }}"
+    ta_key: "{{ ta_key_content.content | b64decode }}"
+    client_cert: "{{ item.1.content | b64decode }}"
+    client_key: "{{ item.2.content | b64decode }}"
+  loop: "{{ openvpn_clients | zip(client_cert_contents.results, client_key_contents.results) | list }}"
+  when: openvpn_clients | length > 0
+
+- name: Remove client CSR files
+  ansible.builtin.file:
+    path: "{{ openvpn_client_dir }}/{{ item.name }}/client.csr"
+    state: absent
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0
+
+- name: Display client configuration locations
+  ansible.builtin.debug:
+    msg: "Client configuration for {{ item.name }}: {{ openvpn_client_dir }}/{{ item.name }}/{{ item.name }}.ovpn"
+  loop: "{{ openvpn_clients }}"
+  when: openvpn_clients | length > 0

@@ -1,0 +1,59 @@
+---
+# =====================================================================
+#  KEEPASSXC — MACOS + LINUX — IDPOTENT & FAIL-PROOF
+# =====================================================================
+
+# ----------------------------
+# macOS – Homebrew must exist
+# ----------------------------
+- name: Ensure Homebrew is installed (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  community.general.homebrew:
+    state: present
+
+
+# ---------------------------------------------------------
+# macOS – Detect KeePassXC installed via Homebrew (no fail)
+# ---------------------------------------------------------
+- name: Check if KeePassXC installed via Homebrew (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  command: brew list --cask keepassxc
+  register: keepassxc_brew
+  failed_when: false
+  changed_when: false
+
+
+# ---------------------------------------------------------------
+# macOS – Detect KeePassXC installed manually in /Applications
+# ---------------------------------------------------------------
+- name: Check if KeePassXC installed manually (macOS)
+  when: ansible_facts.os_family == "Darwin"
+  stat:
+    path: "/Applications/KeePassXC.app"
+  register: keepassxc_manual
+
+
+# ---------------------------------------------------------------------
+# macOS – Install ONLY if not installed (brew or manual)
+# -> Fully idempotent, never fails if already present
+# ---------------------------------------------------------------------
+- name: Install KeePassXC (macOS)
+  when:
+    - ansible_facts.os_family == "Darwin"
+    - keepassxc_brew.rc != 0
+    - keepassxc_manual.stat.exists == false
+  command: brew install --cask keepassxc
+  register: keepassxc_install
+  changed_when: keepassxc_install.rc == 0
+
+
+# ===========================================================
+# LINUX — Debian / RedHat — Standard package installation
+# ===========================================================
+- name: Install KeePassXC (Linux)
+  when: ansible_facts.os_family in ["Debian", "RedHat"]
+  become: true
+  package:
+    name: "{{ keepassxc_package_name }}"
+    state: present
+    update_cache: "{{ 'true' if ansible_facts.os_family == 'Debian' else omit }}"

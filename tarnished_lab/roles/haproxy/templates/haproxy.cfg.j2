@@ -1,0 +1,32 @@
+global
+    log /dev/log local0
+    maxconn 4000
+    user haproxy
+    group haproxy
+    daemon
+
+defaults
+    log global
+    mode {{ mode }}
+    option {{ option }}
+    timeout connect 10s
+    timeout client 1m
+    timeout server 1m
+
+listen {{ listen_http }}
+    bind *:{{ port_http }}
+    balance roundrobin
+    option {{ listen_option }}
+    tcp-check connect port {{ port_http }}
+{% for server in haproxy_servers %}
+    server {{ server.name }} {{ server.address }}:{{ port_http }} check
+{% endfor %}
+
+listen {{ listen_grpc }}
+    bind *:{{ port_grpc }}
+    balance roundrobin
+    option {{ listen_option }}
+    tcp-check connect port {{ port_grpc }}
+{% for server in haproxy_servers %}
+    server {{ server.name }} {{ server.address }}:{{ port_grpc }} check
+{% endfor %}

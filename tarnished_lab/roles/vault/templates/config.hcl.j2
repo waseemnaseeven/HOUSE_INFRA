@@ -1,0 +1,19 @@
+disable_mlock = true
+
+storage "raft" {
+  path    = "{{ vault_data_dir }}"
+  node_id = "vault-{{ inventory_hostname }}"
+}
+
+listener "tcp" {
+  address     = "{{ vault_listener_address }}"
+  tls_disable = {{ vault_tls_disable | lower }}
+{% if not vault_tls_disable %}
+  tls_cert_file = "{{ vault_config_dir }}/tls/vault.crt"
+  tls_key_file  = "{{ vault_config_dir }}/tls/vault.key"
+{% endif %}
+}
+
+api_addr     = "{{ vault_api_addr }}"
+cluster_addr = "{{ vault_cluster_addr }}"
+ui = true

@@ -1,0 +1,114 @@
+---
+- name: Include OS-specific variables
+  include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ ansible_distribution }}.yml"
+    - "{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ ansible_os_family }}.yml"
+  tags:
+    - always
+
+- name: Fail if tcp forwarding allowed but not whitelisted
+  ansible.builtin.fail:
+    msg: "You set sshd_allow_tcp_forwarding to true, but did not set any PermitOpen"
+  when: sshd_allow_tcp_forwarding == "yes" and sshd_permitopens | length == 0 and not sshd_dangerous_permitopens_all
+
+- name: Install latest openssh-server
+  ansible.builtin.package:
+    name: openssh-server
+    state: latest
+
+- name: Check that the host key is already signed
+  stat:
+    path: /etc/ssh/ssh_host_ecdsa_key-cert.pub
+  register: _host_key_cert
+  when: sshd_sign_host_certificate
+
+- name: Write the cert
+  copy:
+    dest: /etc/ssh/ssh_host_ecdsa_key-cert.pub
+    content: "{{ sshd_host_key_cert }}"
+    owner: root
+    group: root
+    mode: "0640"
+  when: sshd_sign_host_certificate and (not _host_key_cert.stat.exists or sshd_force_renew_host_cert)
+  notify:
+    - Restart sshd
+
+- name: Create ssh CA key file for trusted users
+  ansible.builtin.lineinfile:
+    path: "{{ sshd_client_ca_path }}"
+    line: "{{ item.value }}"
+    create: yes
+    state: "{{ item.state | default('present') }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ sshd_client_ca_keys }}"
+  notify: Restart sshd
+  when: sshd_client_ca_enabled
+
+- name: Create client principals folder
+  ansible.builtin.file:
+    path: "{{ sshd_authorizedprincipalsfolder }}"
+    state: "{{ 'directory' if sshd_authorizedprincipalsfile_enabled else 'absent' }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart sshd
+
+- name: Create client principals files
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "{{ sshd_authorizedprincipalsfolder }}/{{ item.key }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ sshd_authorizedprincipalsfiles | dict2items }}"
+  notify: Restart sshd
+  when: sshd_authorizedprincipalsfile_enabled
+
+- name: Find all files
+  ansible.builtin.find:
+    paths: "{{ sshd_authorizedprincipalsfolder }}"
+    recurse: true
+  register: _sshd_principalsfiles_directory_list
+  when: sshd_authorizedprincipalsfile_enabled
+
+# - debug:
+#     msg: "{{ item.path }} ----  {{ [sshd_authorizedprincipalsfolder] | product(sshd_authorizedprincipalsfiles | dict2items | map(attribute='key')) | map('join', '/') | list }}"
+#   loop: "{{ _sshd_principalsfiles_directory_list.files }}"
+#   # Delete the file when the full path the file is not listed in the files to mirror
+#   loop_control:
+#     label: "{{ item.path }}"
+
+- name: Delete unlisted files
+  file:
+    state: absent
+    path: "{{ item.path }}"
+  loop: "{{ _sshd_principalsfiles_directory_list.files }}"
+  # Delete the file when the full path the file is not listed in the files to mirror
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Restart sshd
+  when: sshd_authorizedprincipalsfile_enabled and item.path not in [sshd_authorizedprincipalsfolder] | product(sshd_authorizedprincipalsfiles | dict2items | map(attribute='key')) | map('join', '/') | list
+
+- name: Copy sshd configuration
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    mode: "0600"
+    owner: root
+    group: root
+  notify: Restart sshd
+
+- name: Flush_handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure sshd is started and enabled
+  ansible.builtin.systemd:
+    name: ssh
+    state: started
+    daemon_reload: true
+    enabled: true

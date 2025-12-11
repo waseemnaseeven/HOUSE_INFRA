@@ -1,0 +1,51 @@
+groups:
+- name: oauth2-proxy-alerts
+  rules:
+    # --- Availability ---
+    - alert: Oauth2ProxyDown
+      expr: up{job="oauth2-proxy"} == 0
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: "OAuth2-Proxy down ({{ $labels.instance }})"
+        description: "Prometheus is not scraping oauth2-proxy.\nVALUE = {{ $value }}"
+
+    # --- Auth Failures ---
+    - alert: Oauth2ProxyHighAuthFailures
+      expr: rate(oauth2_proxy_auth_requests{result="error"}[5m]) > 5
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High number of auth failures"
+        description: "More than 5 authentication errors per minute.\nVALUE = {{ $value }}"
+
+    # --- Session Issues ---
+    - alert: Oauth2ProxyExcessiveSignouts
+      expr: rate(oauth2_proxy_requests{path="/oauth2/sign_out"}[5m]) > 10
+      for: 2m
+      labels:
+        severity: info
+      annotations:
+        summary: "Excessive sign-outs detected"
+        description: "Unusually high number of users signing out.\nVALUE = {{ $value }}"
+
+    # --- HTTP Errors ---
+    - alert: Oauth2ProxyHttp5xx
+      expr: rate(oauth2_proxy_http_responses_total{status=~"5.."}[5m]) > 5
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High rate of 5xx errors from OAuth2-Proxy"
+        description: "Too many server errors.\nVALUE = {{ $value }}"
+
+    - alert: Oauth2ProxyHttp4xx
+      expr: rate(oauth2_proxy_http_responses_total{status=~"4.."}[5m]) > 20
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High rate of 4xx errors from OAuth2-Proxy"
+        description: "Too many client errors.\nVALUE = {{ $value }}"

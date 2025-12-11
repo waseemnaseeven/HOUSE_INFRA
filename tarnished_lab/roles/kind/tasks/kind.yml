@@ -1,0 +1,26 @@
+---
+- name: Télécharger Kind
+  get_url:
+    url: https://github.com/kubernetes-sigs/kind/releases/latest/download/kind-linux-amd64
+    dest: "{{ kind_install_dir }}/kind"
+    mode: '0755'
+    force: true
+
+- name: Copy cluster config template
+  template:
+    src: "cluster_config.yml.j2"
+    dest: "/tmp/cluster_config.yml"
+    mode: 0644
+
+- name: Create kind cluster
+  shell: "kind create cluster --name {{ cluster_name }} --config /tmp/cluster_config.yml"
+
+- name: Create namesapce dev
+  shell: "kubectl create namespace dev"
+
+- name: Label 1
+  shell: "kubectl label node kind-worker node=worker1"
+
+- name: Label 2
+  shell: "kubectl label node kind-worker2 node=worker2"
+

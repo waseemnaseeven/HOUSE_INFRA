@@ -1,0 +1,35 @@
+[Unit]
+Description=Node_Exporter Version {{ node_exporter_version }}
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+
+[Service]
+User={{ node_exporter_user }}
+Group={{ node_exporter_group }}
+Restart=on-failure
+Type=simple
+ExecStart={{ node_exporter_binary }} \
+  --web.listen-address=:{{ node_exporter_port }} \
+  --web.config.file={{ node_exporter_web_config }} \
+  --log.level={{ node_exporter_log_level }} \
+{% for collector in node_exporter_enabled_collectors -%}
+{%   if not collector is mapping %}
+    --collector.{{ collector }} \
+{%   else -%}
+{%     set name, options = (collector.items()|list)[0] -%}
+    --collector.{{ name }} \
+{%     for k,v in options|dictsort %}
+    --collector.{{ name }}.{{ k }}={{ v | quote }} \
+{%     endfor -%}
+{%   endif -%}
+{% endfor -%}
+{% if node_exporter_textfile_collector_enabled %}
+    --collector.textfile \
+    --collector.textfile.directory={{ node_exporter_textfile_dir }} \
+{% endif -%}
+{% for collector in node_exporter_disabled_collectors %}
+  --no-collector.{{ collector }}
+{% endfor %}
+
+[Install]
+WantedBy=multi-user.target

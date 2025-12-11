@@ -1,0 +1,6 @@
+ntp_timezone: Etc/UTC
+
+ntp_server_enabled: false
+ntp_restrict: []
+ntp_allow_dhcp: false
+#ntp_servers: [] : make sure it fails if no server written

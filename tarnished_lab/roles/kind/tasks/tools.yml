@@ -1,0 +1,69 @@
+---
+- name: Récupérer la version stable de kubectl
+  shell: curl -L -s https://dl.k8s.io/release/stable.txt
+  register: kubectl_version
+
+- name: Télécharger kubectl
+  get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version.stdout }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+
+- name: Télécharger la somme de contrôle SHA256 de kubectl
+  get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version.stdout }}/bin/linux/amd64/kubectl.sha256"
+    dest: /tmp/kubectl.sha256
+
+- name: Installer kubeadm, kubelet et kubectl via APT
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: yes
+
+- name: Create apt keyrings directory if missing
+  file:
+    path: "{{ keyring_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Create apt keyrings directory if missing
+  file:
+    path: "{{ keyring_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Download Kubernetes APT repository GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/Release.key"
+    dest: "/tmp/Release.key"
+    mode: "0644"
+
+- name: Convert and install GPG key into keyring
+  command: >
+    gpg --dearmor -o {{ keyring_path }}/{{ keyring_file }} /tmp/Release.key
+  args:
+    creates: "{{ keyring_path }}/{{ keyring_file }}"
+
+- name: Add Kubernetes APT repository for v1.33
+  apt_repository:
+    filename: "kubernetes"
+    repo: >
+      deb [signed-by={{ keyring_path }}/{{ keyring_file }}]
+      https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/ /
+    state: present
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install kubelet, kubeadm and kubectl
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present

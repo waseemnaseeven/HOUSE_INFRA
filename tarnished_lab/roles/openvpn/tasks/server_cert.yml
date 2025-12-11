@@ -1,0 +1,65 @@
+---
+- name: Load Vault root token
+  ansible.builtin.slurp:
+    src: "/etc/vault.d/keys/root_token"
+  register: vault_token_file
+
+- name: Set Vault token fact
+  ansible.builtin.set_fact:
+    vault_token: "{{ vault_token_file.content | b64decode | trim }}"
+
+- name: Generate OpenSSL private key for server
+  community.crypto.openssl_privatekey:
+    path: "{{ openvpn_server_key }}"
+    size: 2048
+    mode: '0600'
+
+- name: Generate OpenSSL CSR for server
+  community.crypto.openssl_csr:
+    path: "{{ openvpn_server_dir }}/server.csr"
+    privatekey_path: "{{ openvpn_server_key }}"
+    common_name: "{{ openvpn_server_common_name }}"
+    subject_alt_name:
+      - "DNS:{{ openvpn_server_common_name }}"
+      - "IP:{{ ansible_default_ipv4.address }}"
+
+- name: Read CSR content
+  ansible.builtin.slurp:
+    src: "{{ openvpn_server_dir }}/server.csr"
+  register: server_csr
+
+- name: Sign server certificate with Vault
+  ansible.builtin.uri:
+    url: "http://{{ ansible_default_ipv4.address }}:8200/v1/pki_int/sign/openvpn-server"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_token }}"
+    body_format: json
+    body:
+      csr: "{{ server_csr.content | b64decode }}"
+      common_name: "{{ openvpn_server_common_name }}"
+      ip_sans: "{{ ansible_default_ipv4.address }}"
+      ttl: "8760h"
+    status_code: [200, 204]
+  register: server_cert_response
+
+- name: Save server certificate
+  ansible.builtin.copy:
+    content: "{{ server_cert_response.json.data.certificate }}"
+    dest: "{{ openvpn_server_cert }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Save CA chain
+  ansible.builtin.copy:
+    content: "{{ server_cert_response.json.data.issuing_ca }}"
+    dest: "{{ openvpn_ca_cert }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Remove CSR file
+  ansible.builtin.file:
+    path: "{{ openvpn_server_dir }}/server.csr"
+    state: absent

@@ -1,0 +1,37 @@
+{
+  "ipv6": {{ docker_ipv6_enabled | string | lower }},
+  "ip6tables": {{ (docker_ip6tables or docker_ipv6_enabled) | string | lower }},
+{% if not docker_rootless_enabled %}
+  "experimental": {{ (docker_experimental or docker_ipv6_enabled) | string | lower }},
+{% endif %}
+{% if docker_userns_remap_enabled %}
+  "userns-remap": "{{ docker_userns_remap_user }}",
+{% endif %}
+{% if docker_use_proxy %}
+  "proxies": {
+    "http-proxy": "{{ docker_http_proxy }}",
+    "https-proxy": "{{ docker_https_proxy }}",
+    "no-proxy": "{{ docker_no_proxy }}"
+  },
+{% endif %}
+{% if docker_ipv6_enabled %}
+  "fixed-cidr-v6": "{{ docker_ipv6_network }}",
+{% endif %}
+{% if docker_dns | length > 0 %}
+  "dns": ["{{ docker_dns|join('", "') }}"],
+{% endif %}
+  "iptables": {{ docker_iptables | string | lower }},
+{% if docker_nvidia_enabled %}
+  "runtimes": {
+    "nvidia": {
+      "args": [],
+      "path": "nvidia-container-runtime"
+    }
+  },
+{% endif %}
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}

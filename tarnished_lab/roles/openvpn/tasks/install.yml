@@ -1,0 +1,64 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install OpenVPN and dependencies
+  ansible.builtin.apt:
+    name:
+      - openvpn
+      - easy-rsa
+      - iptables-persistent
+    state: present
+
+- name: Create OpenVPN directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ openvpn_server_dir }}"
+    - "{{ openvpn_client_dir }}"
+    - "/var/log/openvpn"
+
+- name: Enable IP forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    sysctl_set: yes
+    reload: yes
+
+- name: Check if DH params exist
+  ansible.builtin.stat:
+    path: "{{ openvpn_dh_params }}"
+  register: dh_params_stat
+
+- name: Generate DH parameters (this may take several minutes)
+  ansible.builtin.command:
+    cmd: "openssl dhparam -out {{ openvpn_dh_params }} 2048"
+  when: not dh_params_stat.stat.exists
+
+- name: Check if TLS auth key exists
+  ansible.builtin.stat:
+    path: "{{ openvpn_ta_key }}"
+  register: ta_key_stat
+
+- name: Generate TLS auth key
+  ansible.builtin.command:
+    cmd: "openvpn --genkey secret {{ openvpn_ta_key }}"
+  when: not ta_key_stat.stat.exists
+
+- name: Set permissions on private keys
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: '0600'
+  loop:
+    - "{{ openvpn_ta_key }}"
+    - "{{ openvpn_dh_params }}"
+  when: dh_params_stat.stat.exists or ta_key_stat.stat.exists

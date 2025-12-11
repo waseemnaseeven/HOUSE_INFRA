@@ -1,0 +1,4 @@
+- name: Deploying Chrony everywhere
+  hosts: all
+  roles:
+    - ntp_clients

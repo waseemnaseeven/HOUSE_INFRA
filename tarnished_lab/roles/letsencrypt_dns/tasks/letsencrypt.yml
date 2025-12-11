@@ -1,0 +1,166 @@
+---
+- name: Check if certificate already exists
+  stat:
+    path: "{{ cert.base_path }}/{{ cert.cert_path }}"
+  register: _cert_file
+
+- name: Check validity
+  community.crypto.x509_certificate_info:
+    path: "{{ _cert_file.stat.path }}"
+    valid_at:
+      one_month: "+4w"
+  register: _cert_info
+  when: _cert_file.stat.exists
+
+- name: Add user
+  group:
+    name: "{{ cert.owner }}"
+    state: present
+  when: (cert.add_owner | default(true))
+
+- name: Add group
+  user:
+    name: "{{ cert.owner }}"
+    group: "{{ cert.group }}"
+  when: (cert.add_group | default(true))
+
+- name: Create destination directories
+  file:
+    dest: "{{ cert.base_path }}"
+    state: directory
+    owner: "{{ cert.owner }}"
+    group: "{{ cert.group }}"
+
+- name: Generate new private key and certificate
+  when: not _cert_file.stat.exists or not _cert_info.valid_at.one_month or ( cert.force_renew is defined and cert.force_renew )
+  block:
+    - name: Generate an OpenSSL private key
+      community.crypto.openssl_privatekey_pipe:
+        type: "{{ cert.openssl_key_type | default('RSA') }}"
+        curve: "{{ cert.openssl_curve | default(omit) }}"
+        size: "{{ cert.openssl_size | default(4096) }}"
+      register: _private_key
+      no_log: true
+
+    - name: Generate an OpenSSL Certificate Signing Request
+      community.crypto.openssl_csr_pipe:
+        privatekey_content: "{{ _private_key.privatekey }}"
+        common_name: "{{ cert.common_name }}"
+        subject_alt_name: "{{ cert.subject_alt_name | default(omit) }}"
+      register: _csr
+
+    - name: ACME step one
+      community.crypto.acme_certificate:
+        dest: "{{ cert.base_path }}/{{ cert.cert_path }}"
+        fullchain_dest: "{{ cert.base_path }}/{{ cert.ca_chain_path }}"
+        account_key_content: "{{ cert.account_key_content }}"
+        acme_directory: https://acme-v02.api.letsencrypt.org/directory
+        challenge: dns-01
+        acme_version: 2
+        remaining_days: 20
+        csr_content: "{{ _csr.csr }}"
+        terms_agreed: yes
+      register: acme_data
+
+    - name: Dns records
+      ansible.builtin.debug:
+        msg: "For {{ cert.common_name }}, you must deploy TXT record with 20 seconds TTL : {{ i['value']['dns-01']['record'] }} with value {{ i['value']['dns-01']['resource_value'] }}"
+      with_dict: "{{ acme_data['challenge_data'] }}"
+      loop_control:
+        loop_var: i
+        label: "{{ i['value']['dns-01']['record'] }}"
+      when: acme_data.changed
+
+    - name: Publish DNS records using manual
+      ansible.builtin.pause:
+        prompt: "Press enter when dns records added."
+        echo: no
+      when: acme_data.changed and (cert.dns_method | default('manual') == 'manual')
+
+    - name: Publish DNS records using OVH
+      delegate_to: localhost
+      become: false
+      vgn.base.ovh_dns:
+        domain: "{{ cert.dns_domain }}"
+        name: "{{ i['value']['dns-01']['record'] | replace('.'~cert.dns_domain, '') }}"
+        type: TXT
+        ttl: 20
+        value: "{{ i['value']['dns-01']['resource_value'] }}"
+      with_dict: "{{ acme_data['challenge_data'] }}"
+      loop_control:
+        loop_var: i
+        label: "{{ i['value']['dns-01']['record'] }}"
+      when: acme_data.changed and (cert.dns_method | default('manual') == 'ovh')
+
+    - name: Wait for DNS propagation
+      ansible.builtin.pause:
+        seconds: 20
+        echo: no
+
+    - name: ACME step two
+      community.crypto.acme_certificate:
+        challenge: dns-01
+        acme_version: 2
+        csr_content: "{{ _csr.csr }}"
+        account_key_content: "{{ cert.account_key_content }}"
+        dest: "{{ cert.base_path~'/'~cert.cert_path if cert.cert_path is defined else omit }}"
+        fullchain_dest: "{{ cert.base_path~'/'~cert.ca_chain_path if cert.ca_chain_path is defined else omit }}"
+        acme_directory: https://acme-v02.api.letsencrypt.org/directory
+        data: "{{ acme_data }}"
+        remaining_days: 20
+        terms_agreed: yes
+      retries: 10
+      delay: 10
+      register: acme_data_two
+      until: acme_data_two.failed == false
+
+    - name: Copy private key
+      ansible.builtin.copy:
+        content: "{{ _private_key.privatekey }}\n"
+        dest: "{{ cert.base_path }}/{{ cert.key_path }}"
+        owner: "{{ cert.owner }}"
+        group: "{{ cert.group }}"
+        mode: 0600
+
+    - name: Remove DNS records
+      ansible.builtin.debug:
+        msg: "For {{ cert.common_name }}, you must remove TXT record with 20 seconds TTL : {{ i['value']['dns-01']['record'] }} with value {{ i['value']['dns-01']['resource_value'] }}"
+      with_dict: "{{ acme_data['challenge_data'] }}"
+      loop_control:
+        loop_var: i
+      when: acme_data.changed
+
+    - name: Remove DNS records using manual
+      ansible.builtin.pause:
+        prompt: "Press enter when dns records removed."
+        echo: no
+      when: acme_data.changed and (cert.dns_method | default('manual') == 'manual')
+
+    - name: Remove DNS records using OVH
+      delegate_to: localhost
+      become: false
+      vgn.base.ovh_dns:
+        domain: "{{ cert.dns_domain }}"
+        name: "{{ i['value']['dns-01']['record'] | replace('.'~cert.dns_domain, '') }}"
+        type: TXT
+        ttl: 20
+        value: "{{ i['value']['dns-01']['resource_value'] }}"
+        state: absent
+      with_dict: "{{ acme_data['challenge_data'] }}"
+      loop_control:
+        loop_var: i
+        label: "{{ i['value']['dns-01']['record'] }}"
+      when: acme_data.changed and (cert.dns_method | default('manual') == 'ovh')
+
+- name: Ensure file properties
+  file:
+    dest: "{{ cert.base_path }}/{{ i_path }}"
+    owner: "{{ cert.owner }}"
+    group: "{{ cert.group }}"
+    mode: "0600"
+  loop:
+    - "{{ cert.key_path }}"
+    - "{{ cert.ca_chain_path }}"
+    - "{{ cert.cert_path }}"
+  loop_control:
+    loop_var: i_path

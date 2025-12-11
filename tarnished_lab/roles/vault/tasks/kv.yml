@@ -1,0 +1,39 @@
+---
+- name: Load root token
+  ansible.builtin.slurp:
+    src: "{{ vault_root_token_file }}"
+  register: root_token_file
+
+- name: Set root token fact
+  ansible.builtin.set_fact:
+    vault_root_token: "{{ root_token_file.content | b64decode | trim }}"
+
+- name: Check if KV engine is enabled
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_kv_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    status_code: [200, 400]
+  register: kv_mount_check
+
+- name: Enable KV secrets engine
+  ansible.builtin.uri:
+    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_kv_path }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      type: "kv"
+      options:
+        version: "{{ vault_kv_version }}"
+    status_code: [200, 204]
+  when: kv_mount_check.status == 400
+
+- name: Display KV setup completion
+  ansible.builtin.debug:
+    msg:
+      - "KV secrets engine setup completed!"
+      - "Path: {{ vault_kv_path }}"
+      - "Version: {{ vault_kv_version }}"

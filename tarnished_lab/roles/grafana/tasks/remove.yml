@@ -1,0 +1,80 @@
+- name: Check that the grafana service exists
+  stat:
+    path: "{{ grafana_service_file }}"
+  register: grafana_service_file
+
+- name: Check grafana_ssl folder
+  stat:
+    path: "/etc/grafana_ssl"
+  register: grafana_ssl_folder
+
+- name: Check grafana_ssl_client folder
+  stat:
+    path: "/etc/grafana_ssl_client"
+  register: grafana_ssl_client_folder
+
+- name: Disable service
+  ansible.builtin.systemd:
+    state: "stopped"
+    name: grafana-server
+    enabled: false
+  when: grafana_service_file.stat.exists
+
+- name: Remove service
+  ansible.builtin.file:
+    path: "{{ grafana_service_file }}"
+    state: absent
+
+- name: Refresh systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Remove user 
+  ansible.builtin.user:
+    name: "{{ grafana_user }}"
+    state: absent
+    remove: yes
+
+- name: "Remove grafana config folder"
+  ansible.builtin.file:
+    path: "/etc/grafana"
+    state: absent
+
+- name: Remove Grafana 
+  apt:
+    name: grafana
+    state: absent
+    purge: yes
+
+- name: Remove blackbox dashboard
+  ansible.builtin.file:
+    path: "{{ grafana_dashboard_blackbox_config_file }}"
+    state: absent
+
+- name: Remove blackbox json
+  ansible.builtin.file:
+    path: "{{ grafana_dashboard_blackbox_file }}"
+    state: absent
+
+- name: Remove node_exporter config
+  ansible.builtin.file:
+    path: "{{ grafana_dashboard_node_exporter_config_file }}"
+    state: absent
+
+- name: Remove node_exporter json
+  ansible.builtin.file:
+    path: "{{ grafana_dashboard_node_exporter_file }}"
+    state: absent
+
+- name: Remove ssl 
+  ansible.builtin.file:
+    path: "/etc/grafana_ssl"
+    state: absent
+  when: grafana_ssl_folder.stat.exists
+
+- name: Remove ssl client
+  ansible.builtin.file:
+    path: "/etc/grafana_ssl_client"
+    state: absent
+  when: grafana_ssl_client_folder.stat.exists
+

@@ -1,0 +1,15 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for kind
+kind_install_dir: "/usr/local/bin"
+cluster_name: "kind"
+keyring_path: "/etc/apt/keyrings"
+keyring_file: "kubernetes-apt-keyring.gpg"
+repo_file: "/etc/apt/sources.list.d/kubernetes.list"
+k8s_version: "v1.33"
+
+argocd_namespace: argocd
+argocd_cli_url: https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+argocd_cli_dest: /usr/local/bin/argocd
+argocd_nodeport: 30443
+
