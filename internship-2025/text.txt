@@ -1,0 +1,72 @@
+Hello everyone, so here is my presentation, I'll try to make it in 5 mins so Ive completed a 6 month internship at Viginum started the 3rd of February and ended the 1st of August 2025.
+
+SUMMARY : 
+
+This presentation will cover 
+
+- A short introduction to Viginum, 
+
+- what I've learned deeply during the first month
+
+- My main mission which was to create and administrate a monitoring stack with only open source softwares, so I divided into two parts: the metrics stack and the logs stack
+
+ABOUT VIGINUM : 
+
+VIGINUM is a technical and operational service under the French Prime Minister, integrated within the Secretariat de la defense et de la securite nationale, known as SGDSN.
+
+It was created by two decrees in July and December 2021 to address a major challenge: protecting public debate against foreign digital interference.
+
+Its mission is to detect, analyze, and counter information manipulation campaigns on digital platforms. These campaigns often involve foreign actors aiming to harm France’s interests.
+
+Here is the 4 criterias foreign digital interference :
+
+False or misleading content
+Intent to harm the fundamental interests of the Nation
+Direct or indirect involvement
+Spreading or intent to amplify the content
+
+VIGINUM regularly publishes public reports to share its findings.
+For example:
+
+UN-notorious BIG, a campaign targeting French overseas territories and Corsica,
+
+Manipulation of algorithms and influencers, lessons from the Romanian presidential election and the risks for France,
+
+And the African Initiative, which highlights pro-Russian information strategies in Africa.
+
+INTERNAL TRAINING : 
+
+During the first month, I received extensive internal training in network fundamentals started with layer 2 on OSI model to reach layer 3 so network, and we discussed about routers, switch, IP addresses calculation, Network Time Protocol so that all my servers got the same clock, and got deeper knowledges about Linux system administration like SSH, Access Controls List, and so on..
+
+I've learned deeply into infrastructure as code using a forked of Terraform, OpenTofu, to create network, VM etc.. into Outscale cloud provider and deal with configuration with Ansible as soon as SSH was enabled. 
+
+Lastly, I've dealt with high availability and redundancy with tools like HAProxy and Keepalived and I worked with Vault for secret management and PKI.
+
+METRIC STACK 
+
+My main mission was to deploy a monitoring stack using open-source tools.
+
+For metrics, I installed some Prometheus exporters such as node_exporter to collect system, kernel temperature and networks data, or blackbox_exporter to probe url.
+
+These metrics were then stored and visualized in Grafana dashboards, while Alertmanager handled notifications through webhooks, email, and chat tools.
+
+To ensure high availability and redundancy, I implemented Thanos with S3 storage on Outscale, for the test I used minio s3, and deduplication.
+
+All communication was secured with mTLS.
+This metrics stack went fully into production.
+
+LOG STACK
+
+The second part focused on logs.
+I began by testing different scenarios, collecting system logs, application logs from Nginx, Docker and Kubernetes logs, and even PostgreSQL logs.
+I built different pipelines using Promtail, Fluentbit, Logstash, and Rsyslog for log shipping, with Loki and Elasticsearch as storage backends, and Grafana and Kibana for visualization.
+Although this stack remained in development due to time constraints, it provided a strong foundation for future deployment.
+
+CONCLUSION 
+
+To conclude, during this internship, I delivered a secure, automated, and scalable monitoring stack in production, while prototyping a log management system.
+This project improved VIGINUM’s ability to detect anomalies in critical systems, strengthening its mission to protect France against foreign digital interference.
+
+Thank you for your attention.
+
+Special thanks to Ivann LARUELLE, my tutor
