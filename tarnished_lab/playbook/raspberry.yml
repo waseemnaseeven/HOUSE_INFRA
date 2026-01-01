@@ -1,0 +1,9 @@
+---
+- name: Raspberry
+  hosts: raspberrypi
+  become: yes
+  roles:
+    # - general
+    # - docker
+    - k3s
+    

@@ -1,0 +1,9 @@
+---
+- name: One4All
+  hosts: lightsail
+  become: yes
+  roles:
+    # - general
+    # - k3s
+    - blog
+    

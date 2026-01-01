@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Install K3s on Ubuntu (single-node, Traefik enabled)
+  when: ansible_facts.distribution == "Ubuntu"
+  become: true
+  block:
+    - name: Check if K3s is already installed
+      ansible.builtin.command: k3s --version
+      register: k3s_check
+      changed_when: false
+      failed_when: false
+
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: "{{ k3s_install_script_url | default('https://get.k3s.io') }}"
+        dest: /usr/local/bin/k3s-install.sh
+        mode: "0755"
+      when: k3s_force_reinstall | default(false) or k3s_check.rc != 0
+
+    - name: Install K3s (Traefik enabled by default)
+      ansible.builtin.command: sh /usr/local/bin/k3s-install.sh
+      environment:
+        INSTALL_K3S_EXEC: "server"
+        INSTALL_K3S_VERSION: "{{ k3s_version | default(omit) }}"
+      when: k3s_force_reinstall | default(false) or k3s_check.rc != 0
+
+    - name: Ensure kubectl symlink exists
+      ansible.builtin.file:
+        src: /usr/local/bin/k3s
+        dest: /usr/local/bin/kubectl
+        state: link
+
+    - name: Ensure kubeconfig permissions
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/k3s.yaml
+        mode: "0644"
+
+    - name: Export KUBECONFIG for user
+      ansible.builtin.lineinfile:
+        path: "/home/{{ ansible_user }}/.bashrc"
+        line: "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml"
+        create: true
+        state: present
+
+    - name: Add kubectl alias
+      ansible.builtin.lineinfile:
+        path: "/home/{{ ansible_user }}/.bashrc"
+        line: "alias k=kubectl"
+        create: true
+        state: present

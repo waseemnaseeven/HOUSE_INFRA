@@ -1,0 +1,44 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Ensure Python APT deps are present (Debian/Ubuntu)
+  ansible.builtin.raw: |
+    if dpkg -s python3-apt python3-debian >/dev/null 2>&1; then
+      echo "already-present";
+    else
+      apt-get update && apt-get install -y python3-apt python3-debian;
+    fi
+  register: general_python_deps
+  changed_when: "'already-present' not in general_python_deps.stdout"
+  when: ansible_facts.os_family == "Debian"
+  become: true
+
+- name: Update apt cache (Debian/Ubuntu)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: "{{ general_cache_valid_time }}"
+  when: ansible_facts.os_family == "Debian"
+  become: true
+
+- name: Upgrade packages (Debian/Ubuntu)
+  ansible.builtin.apt:
+    upgrade: "{{ general_upgrade_type }}"
+  when: ansible_facts.os_family == "Debian"
+  become: true
+
+- name: Ensure common CLI packages are present (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name:
+      - net-tools
+      - git
+      - vim
+      - curl
+      - make
+      - ca-certificates
+    state: present
+  when: ansible_facts.os_family == "Debian"
+  become: true
+
+- name: Skip upgrade on unsupported systems
+  ansible.builtin.debug:
+    msg: "Role 'general' currently supports Debian-family systems only."
+  when: ansible_facts.os_family != "Debian"

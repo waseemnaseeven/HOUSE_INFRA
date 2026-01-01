@@ -1,0 +1,4 @@
+#SPDX-License-Identifier: MIT-0
+---
+general_cache_valid_time: 3600
+general_upgrade_type: "yes"

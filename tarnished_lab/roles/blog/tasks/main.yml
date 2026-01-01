@@ -1,0 +1,17 @@
+---
+
+- name: Copy Traefik ACME config for k3s
+  copy:
+    src: traefik-acme.yml
+    dest: /var/lib/rancher/k3s/server/manifests/traefik-acme.yml
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy blog Kubernetes manifest
+  copy:
+    src: manifest.yml
+    dest: /tmp/blog-manifest.yml
+    mode: "0644"
+
+
