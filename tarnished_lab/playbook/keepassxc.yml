@@ -1,5 +1,0 @@
-- name: Installing and Deploying KeepassXC
-  hosts: localhost
-  roles:
-    - keepassxc
-    - syncthing

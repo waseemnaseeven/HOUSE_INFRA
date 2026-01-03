@@ -1,0 +1,8 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for argocd
+argocd_namespace: argocd
+argocd_cli_url: https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+argocd_cli_dest: /usr/local/bin/argocd
+argocd_nodeport: 30443
+

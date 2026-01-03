@@ -3,17 +3,9 @@ kind: Namespace
 metadata:
   name: blog
 
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ghcr-auth
-  namespace: blog
-type: kubernetes.io/dockerconfigjson
-data:
+
   # ⚠️ Replace with a real dockerconfigjson or create the secret out-of-band:
   # kubectl create secret docker-registry ghcr-auth --docker-server=ghcr.io --docker-username=... --docker-password=... -n blog
-  .dockerconfigjson: eyJhdXRocyI6e319
 
 ---
 apiVersion: v1
@@ -53,6 +45,7 @@ spec:
       containers:
         - name: backend
           image: ghcr.io/waseemnaseeven/my-blog-backend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
           envFrom:
@@ -113,6 +106,7 @@ spec:
       containers:
         - name: frontend
           image: ghcr.io/waseemnaseeven/my-blog-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           resources:
