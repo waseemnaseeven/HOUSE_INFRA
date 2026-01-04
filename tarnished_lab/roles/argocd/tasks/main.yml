@@ -1,7 +1,4 @@
-# SPDX-License-Identifier: MIT-0
 ---
-# ArgoCD installation (GitOps best practices)
-
 - name: Ensure argocd namespace exists
   kubernetes.core.k8s:
     api_version: v1
@@ -19,10 +16,6 @@
   kubernetes.core.k8s:
     state: present
     src: "argocd-ingress.yml"
-
-# -----------------------------
-# Register Git repository (read-only)
-# -----------------------------
 
 - name: Register Git repository for ArgoCD
   kubernetes.core.k8s:

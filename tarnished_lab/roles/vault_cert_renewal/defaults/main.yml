@@ -1,8 +1,0 @@
----
-# Certificate renewal configuration
-cert_renewal_threshold_days: 30  # Renew if cert expires in less than 30 days
-openvpn_server_cert: "/etc/openvpn/server/server.crt"
-openvpn_server_key: "/etc/openvpn/server/server.key"
-openvpn_server_dir: "/etc/openvpn/server"
-openvpn_server_common_name: "vpn.tarnished.lab"
-vault_addr: "http://localhost:8200"
