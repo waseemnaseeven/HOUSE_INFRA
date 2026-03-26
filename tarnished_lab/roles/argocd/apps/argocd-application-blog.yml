@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-blog
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: my-blog
+    app.kubernetes.io/part-of: blog
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/waseemnaseeven/MY_BLOG.git
+    targetRevision: HEAD
+    # Helm chart location inside the repo
+    path: helm/blog
+    helm:
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: blog
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - FailOnSharedResource=true
+      - RespectIgnoreDifferences=true
+      - PrunePropagationPolicy=foreground
+      - Replace=false
+      - ServerSideApply=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+
+  revisionHistoryLimit: 5
