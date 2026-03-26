@@ -5,3 +5,4 @@ tarnished_lab/vault-backup/
 **/root_token
 **/unseal_keys.json
 *.tar.gz.gpg
+video.mp4

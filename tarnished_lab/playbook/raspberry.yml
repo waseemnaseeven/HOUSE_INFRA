@@ -3,5 +3,6 @@
   hosts: raspberrypi
   become: yes
   roles:
-    - general
+    # - general
+    - vault
     

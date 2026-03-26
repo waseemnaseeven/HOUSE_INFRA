@@ -48,7 +48,7 @@
     path: "{{ vault_bin_path }}"
     owner: root
     group: root
-    mode: '0755'
+    mode: '0777'
 
 - name: Create Vault config and data dirs
   ansible.builtin.file:
@@ -56,7 +56,7 @@
     state: directory
     owner: "{{ vault_user }}"
     group: "{{ vault_group }}"
-    mode: '0755'
+    mode: '0777'
   loop:
     - "{{ vault_config_dir }}"
     - "{{ vault_data_dir }}"
@@ -68,7 +68,7 @@
     dest: "{{ vault_config_dir }}/config.hcl"
     owner: "root"
     group: "root"
-    mode: '0644'
+    mode: '0777'
 
 - name: Create Vault TLS directory
   ansible.builtin.file:
@@ -76,7 +76,7 @@
     state: directory
     owner: "{{ vault_user }}"
     group: "{{ vault_group }}"
-    mode: '0755'
+    mode: '0777'
 
 - name: Deploy systemd unit
   ansible.builtin.template:
@@ -84,7 +84,7 @@
     dest: "{{ vault_systemd_unit }}"
     owner: root
     group: root
-    mode: '0644'
+    mode: '0677'
 
 - name: Reload systemd
   ansible.builtin.systemd:

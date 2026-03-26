@@ -1,4 +1,4 @@
-Hello everyone, so here is my presentation, I'll try to make it in 5 mins so Ive completed a 6 month internship at Viginum started the 3rd of February and ended the 1st of August 2025.
+Hello everyone, so here is my presentation and I'll try to make it in 5 mins. so Ive completed a 6 month internship at Viginum started the 3rd of February and ended the 1st of August 2025.
 
 SUMMARY : 
 
@@ -12,7 +12,7 @@ This presentation will cover
 
 ABOUT VIGINUM : 
 
-VIGINUM is a technical and operational service under the French Prime Minister, integrated within the Secretariat de la defense et de la securite nationale, known as SGDSN.
+VIGINUM is a technical and operational service under the French Prime Minister.
 
 It was created by two decrees in July and December 2021 to address a major challenge: protecting public debate against foreign digital interference.
 
@@ -36,7 +36,7 @@ And the African Initiative, which highlights pro-Russian information strategies 
 
 INTERNAL TRAINING : 
 
-During the first month, I received extensive internal training in network fundamentals started with layer 2 on OSI model to reach layer 3 so network, and we discussed about routers, switch, IP addresses calculation, Network Time Protocol so that all my servers got the same clock, and got deeper knowledges about Linux system administration like SSH, Access Controls List, and so on..
+During the first month, I received extensive internal training in network fundamentals started with layer 2 on OSI model to reach layer 3 so network, to HTTP/HTTPS, and we discussed about routers, switch, IP addresses calculation, Network Time Protocol so that all my servers got the same clock, and got deeper knowledges about Linux system administration like SSH, Access Controls List, and so on..
 
 I've learned deeply into infrastructure as code using a forked of Terraform, OpenTofu, to create network, VM etc.. into Outscale cloud provider and deal with configuration with Ansible as soon as SSH was enabled. 
 
@@ -44,13 +44,11 @@ Lastly, I've dealt with high availability and redundancy with tools like HAProxy
 
 METRIC STACK 
 
-My main mission was to deploy a monitoring stack using open-source tools.
-
 For metrics, I installed some Prometheus exporters such as node_exporter to collect system, kernel temperature and networks data, or blackbox_exporter to probe url.
 
 These metrics were then stored and visualized in Grafana dashboards, while Alertmanager handled notifications through webhooks, email, and chat tools.
 
-To ensure high availability and redundancy, I implemented Thanos with S3 storage on Outscale, for the test I used minio s3, and deduplication.
+To ensure high availability and redundancy, I implemented Thanos with S3 storage on Outscale for long-term storage and deduplication of the data.
 
 All communication was secured with mTLS.
 This metrics stack went fully into production.

@@ -1,5 +1,5 @@
 # Vault installation
-vault_version: "1.20.3"
+vault_version: "1.21.2"
 vault_architecture: "arm64"  # For Raspberry Pi (use "amd64" for x86)
 vault_user: "vault"
 vault_group: "vault"
@@ -9,11 +9,12 @@ vault_data_dir: "/opt/vault/data"
 vault_systemd_unit: "/etc/systemd/system/vault.service"
 
 # Network configuration
-vault_listener_address: "0.0.0.0:8200"
-vault_cluster_address: "0.0.0.0:8201"
-vault_api_addr: "http://{{ ansible_default_ipv4.address }}:8200"
-vault_cluster_addr: "http://{{ ansible_default_ipv4.address }}:8201"
-vault_tls_disable: true  # Set to false if you want HTTPS
+vault_node_id: "my-node"
+vault_listener_address: "127.0.0.1:8200"
+vault_cluster_address: "127.0.0.1:8201"
+vault_api_addr: "https://127.0.0.1:8200"
+vault_cluster_addr: "https://127.0.0.1:8201"
+vault_tls_disable: false  # Set to false if you want HTTPS
 
 # Initialization
 vault_init_file: "{{ vault_config_dir }}/.vault_init"
@@ -21,7 +22,7 @@ vault_unseal_keys_dir: "{{ vault_config_dir }}/keys"
 vault_root_token_file: "{{ vault_config_dir }}/keys/root_token"
 
 # PKI configuration
-vault_pki_enabled: true
+vault_pki_enabled: false
 vault_pki_path: "pki"
 vault_pki_int_path: "pki_int"
 vault_pki_ca_common_name: "Tarnished Lab Root CA"
@@ -55,6 +56,6 @@ vault_pki_roles:
     max_ttl: "8760h"  # 1 year
 
 # KV configuration
-vault_kv_enabled: true
+vault_kv_enabled: false
 vault_kv_path: "secret"
 vault_kv_version: 2

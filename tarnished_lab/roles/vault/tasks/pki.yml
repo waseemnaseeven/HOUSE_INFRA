@@ -2,6 +2,7 @@
 - name: Load root token
   ansible.builtin.slurp:
     src: "{{ vault_root_token_file }}"
+    no_log: true
   register: root_token_file
 
 - name: Set root token fact

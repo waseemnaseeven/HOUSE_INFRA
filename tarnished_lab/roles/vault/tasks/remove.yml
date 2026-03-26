@@ -90,7 +90,6 @@
       - "  All data, keys, and configuration deleted"
       - "  System is ready for fresh Vault installation"
       - ""
-      - "To reinstall, run:"
-      - "  ansible-playbook -i inventory/hosts.yml playbook/openvpn.yml"
+
 
 
