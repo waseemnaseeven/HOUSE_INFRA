@@ -48,3 +48,12 @@
         line: "alias k=kubectl"
         create: true
         state: present
+
+    # ─── Traefik ACME (Let's Encrypt) ──────────────────────────────────────
+    - name: Deploy Traefik ACME config for Let's Encrypt
+      ansible.builtin.copy:
+        src: traefik-acme.yml
+        dest: /var/lib/rancher/k3s/server/manifests/traefik-acme.yml
+        owner: root
+        group: root
+        mode: "0644"
