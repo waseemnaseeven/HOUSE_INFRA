@@ -1,0 +1,78 @@
+---
+# vault_policies/tasks/main.yml
+#
+# Role orchestrator. Resolves vault_root_token before delegating to sub-tasks.
+#
+# Execution order:
+#   1. Token resolution (vault role fact → backup file → extra-vars → fail)
+#   2. Upload HCL policies             [tag: policies]
+#   3. Vault tokens (vault_tokens list) [tag: tokens]
+#   4. Ansible AppRole (bootstrap)     [tag: approle]
+
+# ---------------------------------------------------------------------------
+# vault_root_token resolution
+# ---------------------------------------------------------------------------
+
+- name: Check if vault_root_token is already available (fact from vault role)
+  ansible.builtin.debug:
+    msg: "vault_root_token available from vault role (play fact)."
+  when: vault_root_token is defined and vault_root_token != ''
+  tags: always
+
+# Fallback 1: read admin token from local backup (if root token was revoked)
+- name: Check if admin_token backup exists locally
+  ansible.builtin.stat:
+    path: "{{ vault_backup_dir }}/admin_token"
+  delegate_to: localhost
+  become: false
+  register: _admin_token_backup_stat
+  when: vault_root_token is not defined or vault_root_token == ''
+  tags: always
+
+- name: Read admin_token from local backup (fallback)
+  ansible.builtin.set_fact:
+    vault_root_token: "{{ lookup('ansible.builtin.file', vault_backup_dir + '/admin_token') | trim }}"
+  when:
+    - vault_root_token is not defined or vault_root_token == ''
+    - _admin_token_backup_stat.stat is defined
+    - _admin_token_backup_stat.stat.exists
+  tags: always
+
+- name: Debug fallback token source
+  ansible.builtin.debug:
+    msg: "vault_root_token resolved from {{ vault_backup_dir }}/admin_token (fallback)."
+  when:
+    - vault_root_token is defined and vault_root_token != ''
+    - _admin_token_backup_stat.stat is defined
+    - _admin_token_backup_stat.stat.exists
+  tags: always
+
+# Fallback 2: if still undefined, check if passed via extra-vars
+# (vault_root_token passed via --extra-vars is already in scope — no action needed)
+
+# Explicit failure if no token is available
+- name: Fail if vault_root_token is not available
+  ansible.builtin.fail:
+    msg: |
+      vault_root_token is not available. Solutions:
+        1. Run this role in the same play as the vault role (shared facts).
+        2. Pass the token via --extra-vars 'vault_root_token=<token>'.
+        3. Have an admin_token file at {{ vault_backup_dir }}/admin_token.
+  when: vault_root_token is not defined or vault_root_token == ''
+  tags: always
+
+# ---------------------------------------------------------------------------
+# Sub-tasks
+# ---------------------------------------------------------------------------
+
+- name: Include policies tasks
+  ansible.builtin.include_tasks: policies.yml
+  tags: policies
+
+- name: Include token creation tasks
+  ansible.builtin.include_tasks: tokens.yml
+  tags: tokens
+
+- name: Include AppRole ansible tasks
+  ansible.builtin.include_tasks: approle_ansible.yml
+  tags: approle

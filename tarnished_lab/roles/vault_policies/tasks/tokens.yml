@@ -1,0 +1,21 @@
+---
+# vault_policies/tasks/tokens.yml
+#
+# Loops over vault_tokens and creates each token via create_token.yml.
+# To add a new user: append an entry to vault_tokens in defaults or host_vars.
+# To force recreation: delete the sentinel file for that token.
+
+- name: Ensure vault-backup directory exists locally
+  ansible.builtin.file:
+    path: "{{ vault_backup_dir }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+
+- name: Create Vault tokens
+  ansible.builtin.include_tasks: create_token.yml
+  loop: "{{ vault_tokens }}"
+  loop_control:
+    loop_var: _vault_token
+    label: "{{ _vault_token.name }}"

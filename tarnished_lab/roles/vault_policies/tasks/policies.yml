@@ -1,0 +1,36 @@
+---
+# vault_policies/tasks/policies.yml
+#
+# Uploads all HCL policies to the Vault API.
+# Idempotent: Vault accepts PUT on an existing policy (update in place).
+# The API returns 200 or 204 depending on the version.
+
+- name: Ensure vault-backup directory exists locally
+  ansible.builtin.file:
+    path: "{{ vault_backup_dir }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+
+- name: Upload Vault ACL policies
+  ansible.builtin.uri:
+    url: "{{ vault_policies_api_url }}/v1/sys/policies/acl/{{ item }}"
+    method: PUT
+    validate_certs: "{{ vault_policies_validate_certs }}"
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      # lookup() runs on the controller — role_path points to the vault_policies role
+      policy: "{{ lookup('ansible.builtin.file', role_path + '/files/policies/' + item + '.hcl') }}"
+    status_code: [200, 204]
+  loop: "{{ vault_policies_list }}"
+  register: _policy_upload_results
+
+- name: Debug policy upload results
+  ansible.builtin.debug:
+    msg: "Policy '{{ item.item }}' uploaded successfully (HTTP {{ item.status }})."
+  loop: "{{ _policy_upload_results.results }}"
+  loop_control:
+    label: "{{ item.item }}"

@@ -1,0 +1,46 @@
+---
+# Vault API — calls from the host itself (avoids DNS dependency)
+vault_policies_api_url: "https://127.0.0.1:8200"
+vault_policies_validate_certs: false
+
+# Policies to deploy (name = HCL filename in files/policies/, without extension)
+vault_policies_list:
+  - admin
+  - ansible
+  - user1-readonly
+
+# Tokens to create — one entry per human user or service identity.
+# Each token is protected by a local sentinel (.{name}_token_created).
+# Add entries here to provision new users; remove the sentinel to force renewal.
+#
+# vault_tokens:
+#   - name: alice
+#     display_name: alice-human
+#     policies:
+#       - admin
+#     ttl: "720h"
+#     renewable: true
+vault_tokens:
+  - name: admin
+    display_name: admin-human
+    policies:
+      - admin
+    ttl: "720h"
+    renewable: true
+  - name: user1
+    display_name: user1
+    policies:
+      - user1-readonly
+    ttl: "720h"
+    renewable: true
+
+# AppRole for Ansible automation
+vault_ansible_approle_role_name: "ansible"
+vault_ansible_approle_token_ttl: "1h"
+vault_ansible_approle_token_max_ttl: "2h"
+vault_ansible_approle_secret_id_ttl: "0"
+vault_ansible_approle_secret_id_num_uses: 0
+
+# Local backup directory (relative to playbook_dir)
+# Resolves to: <repo>/vault-backup/<inventory_hostname>/
+vault_backup_dir: "{{ playbook_dir }}/../vault-backup/{{ inventory_hostname }}"

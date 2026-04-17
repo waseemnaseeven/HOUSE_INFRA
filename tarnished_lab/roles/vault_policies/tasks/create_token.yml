@@ -1,0 +1,75 @@
+---
+# vault_policies/tasks/create_token.yml
+#
+# Creates a single orphan Vault token for one entry in vault_tokens.
+# Called via include_tasks loop from tokens.yml — expects loop_var: _vault_token.
+#
+# Idempotency: controlled by a per-token sentinel file.
+# Sentinel path: {{ vault_backup_dir }}/.{{ _vault_token.name }}_token_created
+# Delete the sentinel to force token recreation.
+
+- name: "Check token sentinel — {{ _vault_token.name }}"
+  ansible.builtin.stat:
+    path: "{{ vault_backup_dir }}/.{{ _vault_token.name }}_token_created"
+  delegate_to: localhost
+  become: false
+  register: _token_sentinel
+
+- name: "Debug token sentinel status — {{ _vault_token.name }}"
+  ansible.builtin.debug:
+    msg: "{{ _vault_token.name }} token already created (sentinel present) — skip."
+  when: _token_sentinel.stat.exists
+
+- name: "Create orphan token — {{ _vault_token.name }}"
+  ansible.builtin.uri:
+    url: "{{ vault_policies_api_url }}/v1/auth/token/create-orphan"
+    method: POST
+    validate_certs: "{{ vault_policies_validate_certs }}"
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      display_name: "{{ _vault_token.display_name }}"
+      policies: "{{ _vault_token.policies }}"
+      ttl: "{{ _vault_token.ttl }}"
+      renewable: "{{ _vault_token.renewable }}"
+    status_code: [200]
+  register: _token_response
+  when: not _token_sentinel.stat.exists
+
+- name: "Ensure vault-backup directory exists — {{ _vault_token.name }}"
+  ansible.builtin.file:
+    path: "{{ vault_backup_dir }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+  when: not _token_sentinel.stat.exists
+
+- name: "Save token to local backup — {{ _vault_token.name }}"
+  ansible.builtin.copy:
+    content: "{{ _token_response.json.auth.client_token }}"
+    dest: "{{ vault_backup_dir }}/{{ _vault_token.name }}_token"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  when: not _token_sentinel.stat.exists
+
+- name: "Create token sentinel — {{ _vault_token.name }}"
+  ansible.builtin.file:
+    path: "{{ vault_backup_dir }}/.{{ _vault_token.name }}_token_created"
+    state: touch
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  when: not _token_sentinel.stat.exists
+
+- name: "Debug token created — {{ _vault_token.name }}"
+  ansible.builtin.debug:
+    msg:
+      - "Token '{{ _vault_token.name }}' created successfully."
+      - "  Display name : {{ _vault_token.display_name }}"
+      - "  Policies     : {{ _vault_token.policies | join(', ') }}"
+      - "  TTL          : {{ _vault_token.ttl }}"
+      - "  Saved to     : {{ vault_backup_dir }}/{{ _vault_token.name }}_token"
+  when: not _token_sentinel.stat.exists
