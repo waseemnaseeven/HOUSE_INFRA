@@ -1,5 +1,5 @@
 ---
-- name: One4All
+- name: All4One
   hosts: lightsail
   become: yes
   pre_tasks:
@@ -17,6 +17,8 @@
   roles:
     # - general
     # - k3s
-    - argocd
+    # - argocd
     # - blog
-    
+    - vault
+    - vault_policies
+
