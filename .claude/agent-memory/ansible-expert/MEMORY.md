@@ -1,0 +1,2 @@
+- [Vault Homelab Infrastructure](project_vault_infra.md) — Lightsail+Vault, token sharing entre rôles, sentinels idempotence, rôle vault_policies
+- [User Profile](user_profile.md) — homelab admin, préfère français, niveau Ansible intermédiaire-avancé
