@@ -1,33 +1,39 @@
-path "sys/auth/*" {
-  capabilities = ["create", "read", "update", "delete", "sudo"]
-}
 
-path "sys/policies/acl/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
 
 path "sys/mounts/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
+  capabilities = ["create", "read", "update", "list"]
 }
 
-path "sys/audit*" {
-  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
-}
-
-path "auth/approle/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
-
-# One-shot bootstrap only — sentinel prevents re-execution on subsequent runs.
-# sudo is required to assign policies outside the creator token's own policy set.
-path "auth/token/create-orphan" {
-  capabilities = ["create", "update", "sudo"]
-}
-
-path "secret/data/*" {
+path "sys/audit" {
   capabilities = ["read"]
 }
 
-path "secret/metadata/*" {
-  capabilities = ["read", "list"]
+path "sys/audit/*" {
+  capabilities = ["create", "read", "update"]
+}
+
+# KV v2 application secrets — explicit paths, no wildcard.
+path "secret/data/openclaw" {
+  capabilities = ["read"]
+}
+
+path "secret/data/my_blog" {
+  capabilities = ["read"]
+}
+
+path "secret/metadata/openclaw" {
+  capabilities = ["read"]
+}
+
+path "secret/metadata/my_blog" {
+  capabilities = ["read"]
+}
+
+# Token self-management — allows the AppRole token to renew itself during long runs.
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
 }
