@@ -1,30 +1,44 @@
 ---
-- name: Include remove tasks
+- name: Remove Vault
   ansible.builtin.include_tasks: remove.yml
-  tags: remove
+  tags: [remove]
   when: "'remove' in ansible_run_tags"
 
-- name: Include install tasks
+- name: Install Vault
   ansible.builtin.include_tasks: install.yml
-  tags: install
+  tags: [install]
   when: "'remove' not in ansible_run_tags"
 
-# - name: Include initialization tasks
-#   ansible.builtin.include_tasks: init.yml
-#   tags: init
-#   when: "'remove' not in ansible_run_tags"
+- name: Initialize and unseal Vault
+  ansible.builtin.include_tasks: init.yml
+  tags: [init]
+  when: "'remove' not in ansible_run_tags"
 
-# - name: Include PKI setup tasks
-#   ansible.builtin.include_tasks: pki.yml
-#   tags: pki
-#   when:
-#     - vault_pki_enabled
-#     - "'remove' not in ansible_run_tags"
+# On the first run, vault_root_token is set by init.yml — this block is skipped.
+- name: Obtain vault_root_token via AppRole (re-runs only)
+  when:
+    - "'remove' not in ansible_run_tags"
+    - vault_root_token is not defined or vault_root_token == ''
+    - vault_approle_role_id != ''
+    - vault_approle_secret_id != ''
+  block:
+    - name: AppRole login
+      ansible.builtin.uri:
+        url: "{{ vault_local_api_url }}/v1/auth/approle/login"
+        method: POST
+        validate_certs: false
+        body_format: json
+        body:
+          role_id: "{{ vault_approle_role_id }}"
+          secret_id: "{{ vault_approle_secret_id }}"
+        status_code: [200]
+      register: _approle_login
 
-# - name: Include KV setup tasks
-#   ansible.builtin.include_tasks: kv.yml
-#   tags: kv
-#   when:
-#     - vault_kv_enabled
-#     - "'remove' not in ansible_run_tags"
+    - name: Set vault_root_token from AppRole login
+      ansible.builtin.set_fact:
+        vault_root_token: "{{ _approle_login.json.auth.client_token }}"
 
+- name: Configure KV secrets engine and audit
+  ansible.builtin.include_tasks: kv.yml
+  tags: [kv]
+  when: "'remove' not in ansible_run_tags"

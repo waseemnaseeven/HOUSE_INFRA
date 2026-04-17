@@ -1,19 +1,29 @@
+cluster_name = "tarnishedlab"
 api_addr     = "{{ vault_api_addr }}"
 cluster_addr = "{{ vault_cluster_addr }}"
-cluster_name = "my-vault"
+
 ui = true
-disable_mlock = true
+disable_mlock = false
+log_level    = "info"
+log_format   = "json"
 
 listener "tcp" {
   address     = "{{ vault_listener_address }}"
   tls_disable = {{ vault_tls_disable | lower }}
 {% if not vault_tls_disable %}
-  tls_cert_file = "{{ vault_config_dir }}/tls/vault.crt"
-  tls_key_file  = "{{ vault_config_dir }}/tls/vault.key"
+  tls_cert_file = "{{ vault_tls_dir }}/vault.crt"
+  tls_key_file  = "{{ vault_tls_dir }}/vault.key"
 {% endif %}
 }
 
-backend "raft" {
+storage "raft" {
   path    = "{{ vault_data_dir }}"
   node_id = "{{ vault_node_id }}"
 }
+
+{% if vault_autounseal_provider == 'awskms' %}
+seal "awskms" {
+  region     = "{{ vault_awskms_region }}"
+  kms_key_id = "{{ vault_awskms_key_id }}"
+}
+{% endif %}

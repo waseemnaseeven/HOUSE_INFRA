@@ -1,17 +1,40 @@
 ---
-- name: Load root token
+# vault_root_token is set as a fact by init.yml during this play.
+# On re-runs where Vault is already initialized, try to read it from the backup file.
+- name: Check if root token file exists on server
+  ansible.builtin.stat:
+    path: "{{ vault_root_token_file }}"
+  register: root_token_stat
+  when: vault_root_token is not defined or vault_root_token == ''
+
+- name: Load root token from file if not already set
   ansible.builtin.slurp:
     src: "{{ vault_root_token_file }}"
-  register: root_token_file
+  register: root_token_slurp
+  when:
+    - vault_root_token is not defined or vault_root_token == ''
+    - root_token_stat.stat.exists | default(false)
 
-- name: Set root token fact
+- name: Set root token fact from file
   ansible.builtin.set_fact:
-    vault_root_token: "{{ root_token_file.content | b64decode | trim }}"
+    vault_root_token: "{{ root_token_slurp.content | b64decode | trim }}"
+  when:
+    - vault_root_token is not defined or vault_root_token == ''
+    - root_token_slurp.content is defined
 
-- name: Check if KV engine is enabled
+- name: Fail if root token is still not available
+  ansible.builtin.fail:
+    msg: |
+      vault_root_token is not set and not found on server at {{ vault_root_token_file }}.
+      Pass it via: -e vault_root_token=<token>
+      Find it in your local backup: vault-backup/{{ inventory_hostname }}/root_token
+  when: vault_root_token is not defined or vault_root_token == ''
+
+- name: Check if KV engine is already enabled
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_kv_path }}"
+    url: "{{ vault_local_api_url }}/v1/sys/mounts/{{ vault_kv_path }}"
     method: GET
+    validate_certs: false
     headers:
       X-Vault-Token: "{{ vault_root_token }}"
     status_code: [200, 400]
@@ -19,17 +42,45 @@
 
 - name: Enable KV secrets engine
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/mounts/{{ vault_kv_path }}"
+    url: "{{ vault_local_api_url }}/v1/sys/mounts/{{ vault_kv_path }}"
     method: POST
+    validate_certs: false
     headers:
       X-Vault-Token: "{{ vault_root_token }}"
     body_format: json
     body:
       type: "kv"
       options:
-        version: "{{ vault_kv_version }}"
+        version: "{{ vault_kv_version | string }}"
     status_code: [200, 204]
   when: kv_mount_check.status == 400
+
+- name: Check if file audit device is already enabled
+  ansible.builtin.uri:
+    url: "{{ vault_local_api_url }}/v1/sys/audit"
+    method: GET
+    validate_certs: false
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    status_code: [200]
+  register: audit_check
+
+- name: Enable file audit device
+  ansible.builtin.uri:
+    url: "{{ vault_local_api_url }}/v1/sys/audit/file"
+    method: PUT
+    validate_certs: false
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      type: "file"
+      options:
+        file_path: "{{ vault_log_dir }}/audit.log"
+        format: "json"
+        mode: "0600"
+    status_code: [200, 204]
+  when: "'file/' not in (audit_check.json | default({}) | dict2items | map(attribute='key') | list | join(','))"
 
 - name: Display KV setup completion
   ansible.builtin.debug:
@@ -37,3 +88,4 @@
       - "KV secrets engine setup completed!"
       - "Path: {{ vault_kv_path }}"
       - "Version: {{ vault_kv_version }}"
+      - "Audit device enabled at: {{ vault_log_dir }}/audit.log"

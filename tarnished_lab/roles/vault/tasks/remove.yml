@@ -19,7 +19,7 @@
     enabled: no
   ignore_errors: true
 
-- name: Reload systemd to remove Vault service
+- name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: yes
 
@@ -33,28 +33,14 @@
     path: "{{ vault_systemd_unit }}"
     state: absent
 
-- name: Remove Vault configuration directory (including keys!)
-  ansible.builtin.file:
-    path: "{{ vault_config_dir }}"
-    state: absent
-
-- name: Remove Vault data directory contents (Raft storage)
-  ansible.builtin.shell: rm -rf {{ vault_data_dir }}/*
-  ignore_errors: true
-
-- name: Remove Vault data directory (Raft storage)
+- name: Remove Vault data directory
   ansible.builtin.file:
     path: "{{ vault_data_dir }}"
     state: absent
 
-- name: Remove Vault TLS directory
+- name: Remove Vault configuration directory
   ansible.builtin.file:
-    path: "/etc/vault.d/tls"
-    state: absent
-
-- name: Remove any remaining /etc/vault.d directory
-  ansible.builtin.file:
-    path: "/etc/vault.d"
+    path: "{{ vault_config_dir }}"
     state: absent
 
 - name: Remove Vault user
@@ -71,13 +57,13 @@
     state: absent
   ignore_errors: true
 
-- name: Remove Vault temp files
+- name: Remove temp files
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
-    - "/tmp/vault.zip"
-    - "/tmp/vault"
+    - /tmp/vault.zip
+    - /tmp/vault
 
 - name: Reload systemd after cleanup
   ansible.builtin.systemd:
@@ -85,11 +71,4 @@
 
 - name: Display removal completion
   ansible.builtin.debug:
-    msg:
-      - "✓ Vault has been completely removed"
-      - "  All data, keys, and configuration deleted"
-      - "  System is ready for fresh Vault installation"
-      - ""
-
-
-
+    msg: "Vault completely removed. System ready for fresh installation."

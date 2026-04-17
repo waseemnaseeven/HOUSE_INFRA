@@ -1,22 +1,44 @@
 [Unit]
-Description=HashiCorp Vault - A tool for managing secrets
+Description=HashiCorp Vault — Secret Management
 Documentation=https://developer.hashicorp.com/vault/docs
+Requires=network-online.target
 After=network-online.target
-Wants=network-online.target
+ConditionFileNotEmpty={{ vault_config_file }}
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
+Type=notify
 User={{ vault_user }}
 Group={{ vault_group }}
-ExecStart={{ vault_bin_path }} server -config={{ vault_config_dir }}/config.hcl
-ExecReload=/bin/kill --signal HUP $MAINPID
-KillMode=process
-Restart=on-failure
-LimitNOFILE=65536
-NoNewPrivileges=yes
-ProtectSystem=full
-ProtectHome=read-only
+ProtectSystem=strict
+ProtectHome=yes
 PrivateTmp=yes
+PrivateDevices=yes
+SecureBits=keep-caps
+AmbientCapabilities=CAP_IPC_LOCK
+CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
+NoNewPrivileges=yes
+ReadWritePaths={{ vault_data_dir }} {{ vault_log_dir }} {{ vault_config_dir }} {{ vault_unseal_keys_dir }}
+
+{% if vault_autounseal_provider == 'awskms' %}
+Environment=AWS_ACCESS_KEY_ID={{ vault_aws_access_key_id }}
+Environment=AWS_SECRET_ACCESS_KEY={{ vault_aws_secret_access_key }}
+Environment=AWS_DEFAULT_REGION={{ vault_awskms_region }}
+{% endif %}
+ExecStart=/usr/local/bin/vault server -config={{ vault_config_file }}
+ExecReload=/bin/kill --signal HUP $MAINPID
+
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+StandardOutput=append:{{ vault_log_dir }}/vault.log
+StandardError=append:{{ vault_log_dir }}/vault-error.log
 
 [Install]
 WantedBy=multi-user.target
-

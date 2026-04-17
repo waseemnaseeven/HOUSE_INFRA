@@ -17,6 +17,46 @@
     system: yes
     create_home: no
 
+- name: Create Vault config dir
+  ansible.builtin.file:
+    path: "{{ vault_config_dir }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0750'
+
+- name: Create Vault data dir
+  ansible.builtin.file:
+    path: "{{ vault_data_dir }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0700'
+
+- name: Create Vault TLS dir
+  ansible.builtin.file:
+    path: "{{ vault_tls_dir }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0700'
+
+- name: Create Vault log dir
+  ansible.builtin.file:
+    path: "{{ vault_log_dir }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0750'
+
+- name: Create Vault keys dir
+  ansible.builtin.file:
+    path: "{{ vault_unseal_keys_dir }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0700'
+
 - name: Check installed Vault version
   ansible.builtin.command: "{{ vault_bin_path }} --version"
   register: vault_installed
@@ -43,40 +83,47 @@
     remote_src: yes
   when: vault_installed.rc != 0 or vault_version not in vault_installed.stdout
 
+- name: Give vault binary capability to use mlock without root
+  community.general.capabilities:
+    path: /usr/local/bin/vault
+    capability: cap_ipc_lock+ep
+    state: present
+
 - name: Ensure Vault binary permissions
   ansible.builtin.file:
     path: "{{ vault_bin_path }}"
     owner: root
     group: root
-    mode: '0777'
+    mode: '0755'
 
-- name: Create Vault config and data dirs
+- name: Generate self-signed TLS cert for bootstrap
+  ansible.builtin.command:
+    cmd: >
+      openssl req -x509 -newkey rsa:4096 -nodes
+      -keyout {{ vault_tls_dir }}/vault.key
+      -out {{ vault_tls_dir }}/vault.crt
+      -days 365
+      -subj "/CN=vault.tarnishedlab"
+      -addext "subjectAltName=DNS:vault.tarnishedlab,IP:127.0.0.1"
+    creates: "{{ vault_tls_dir }}/vault.crt"
+
+- name: Set TLS file permissions
   ansible.builtin.file:
     path: "{{ item }}"
-    state: directory
     owner: "{{ vault_user }}"
     group: "{{ vault_group }}"
-    mode: '0777'
+    mode: "0640"
   loop:
-    - "{{ vault_config_dir }}"
-    - "{{ vault_data_dir }}"
-    - "{{ vault_unseal_keys_dir }}"
+    - "{{ vault_tls_dir }}/vault.key"
+    - "{{ vault_tls_dir }}/vault.crt"
 
 - name: Deploy Vault config
   ansible.builtin.template:
     src: config.hcl.j2
-    dest: "{{ vault_config_dir }}/config.hcl"
-    owner: "root"
-    group: "root"
-    mode: '0777'
-
-- name: Create Vault TLS directory
-  ansible.builtin.file:
-    path: /etc/vault.d/tls
-    state: directory
+    dest: "{{ vault_config_file }}"
     owner: "{{ vault_user }}"
     group: "{{ vault_group }}"
-    mode: '0777'
+    mode: '0640'
 
 - name: Deploy systemd unit
   ansible.builtin.template:
@@ -84,7 +131,7 @@
     dest: "{{ vault_systemd_unit }}"
     owner: root
     group: root
-    mode: '0677'
+    mode: '0644'
 
 - name: Reload systemd
   ansible.builtin.systemd:
@@ -95,5 +142,3 @@
     name: vault
     state: started
     enabled: yes
-
-

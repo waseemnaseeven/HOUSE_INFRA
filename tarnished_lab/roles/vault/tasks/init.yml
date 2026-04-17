@@ -1,8 +1,9 @@
 ---
 - name: Wait for Vault to be ready
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/health"
+    url: "{{ vault_local_api_url }}/v1/sys/health"
     method: GET
+    validate_certs: false
     status_code: [200, 429, 472, 473, 501, 503]
   register: vault_health
   until: vault_health.status in [200, 429, 501, 503]
@@ -11,49 +12,65 @@
 
 - name: Check if Vault is already initialized
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/init"
+    url: "{{ vault_local_api_url }}/v1/sys/init"
     method: GET
+    validate_certs: false
     status_code: [200]
   register: vault_init_status
 
-- name: Initialize Vault
+- name: Initialize Vault (manual unseal — Shamir keys)
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/init"
+    url: "{{ vault_local_api_url }}/v1/sys/init"
     method: POST
+    validate_certs: false
     body_format: json
     body:
       secret_shares: 5
       secret_threshold: 3
     status_code: [200]
   register: vault_init_response
+  when:
+    - not vault_init_status.json.initialized
+    - vault_autounseal_provider != 'awskms'
+
+- name: Initialize Vault (auto-unseal — recovery keys)
+  ansible.builtin.uri:
+    url: "{{ vault_local_api_url }}/v1/sys/init"
+    method: POST
+    validate_certs: false
+    body_format: json
+    body:
+      recovery_shares: 5
+      recovery_threshold: 3
+    status_code: [200]
+  register: vault_init_response
+  when:
+    - not vault_init_status.json.initialized
+    - vault_autounseal_provider == 'awskms'
+
+# Set root token as a fact immediately — kv.yml will use this fact directly,
+# so the file never needs to exist at the time kv.yml runs.
+- name: Set root token fact from init response
+  ansible.builtin.set_fact:
+    vault_root_token: "{{ vault_init_response.json.root_token }}"
   when: not vault_init_status.json.initialized
 
 - name: Save full Vault init response as JSON
   ansible.builtin.copy:
-    content: |
-      {{ vault_init_response.json | to_yaml }}
+    content: "{{ vault_init_response.json | to_json }}"
     dest: "{{ vault_unseal_keys_dir }}/unseal_keys_full.json"
     owner: "{{ vault_user }}"
     group: "{{ vault_group }}"
     mode: '0600'
   when: not vault_init_status.json.initialized
 
-- name: Save root token
+- name: Save root token to file temporarily (for local backup only)
   ansible.builtin.copy:
-    content: "{{ vault_init_response.json.root_token }}"
+    content: "{{ vault_root_token }}"
     dest: "{{ vault_root_token_file }}"
     owner: "{{ vault_user }}"
     group: "{{ vault_group }}"
     mode: '0600'
-  when: not vault_init_status.json.initialized
-
-- name: Display initialization message
-  ansible.builtin.debug:
-    msg:
-      - "Vault has been initialized!"
-      - "Root token saved to: {{ vault_root_token_file }}"
-      - "Unseal keys saved to: {{ vault_unseal_keys_dir }}/unseal_keys.json"
-      - "IMPORTANT: Backup these files securely!"
   when: not vault_init_status.json.initialized
 
 - name: Fetch Vault keys to local backup directory
@@ -65,84 +82,150 @@
     - "{{ vault_root_token_file }}"
     - "{{ vault_unseal_keys_dir }}/unseal_keys_full.json"
   when: not vault_init_status.json.initialized
-  delegate_to: "{{ inventory_hostname }}"
+
+- name: Verify local backup of unseal keys exists
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../vault-backup/{{ inventory_hostname }}/unseal_keys_full.json"
+  delegate_to: localhost
+  become: false
+  register: local_backup_stat
+  when: not vault_init_status.json.initialized
+
+- name: Remove unseal keys from server after confirmed local backup
+  ansible.builtin.file:
+    path: "{{ vault_unseal_keys_dir }}/unseal_keys_full.json"
+    state: absent
+  when:
+    - not vault_init_status.json.initialized
+    - local_backup_stat.stat.exists | default(false)
+
+- name: Remove root token file from server after confirmed local backup
+  ansible.builtin.file:
+    path: "{{ vault_root_token_file }}"
+    state: absent
+  when:
+    - not vault_init_status.json.initialized
+    - local_backup_stat.stat.exists | default(false)
 
 - name: Display backup location
   ansible.builtin.debug:
     msg:
-      - "✓ Vault keys backed up locally to:"
+      - "Vault keys backed up locally to:"
       - "  {{ playbook_dir }}/../vault-backup/{{ inventory_hostname }}/"
       - "  - root_token"
-      - "  - unseal_keys.json"
+      - "  - unseal_keys_full.json"
       - ""
-      - "⚠ IMPORTANT: Encrypt and store these files securely!"
+      - "IMPORTANT: Encrypt and store these files securely! They have been removed from the server."
   when: not vault_init_status.json.initialized
   run_once: true
 
-- name: Check if unseal keys file exists
+# Manual unseal path — only when not using auto-unseal
+- name: Check if unseal keys file exists on server
   ansible.builtin.stat:
     path: "{{ vault_unseal_keys_dir }}/unseal_keys_full.json"
   register: unseal_keys_file_stat
+  when: vault_autounseal_provider != 'awskms'
 
 - name: Load unseal keys from file
   ansible.builtin.slurp:
     src: "{{ vault_unseal_keys_dir }}/unseal_keys_full.json"
   register: unseal_keys_file
-  when: unseal_keys_file_stat.stat.exists
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - unseal_keys_file_stat.stat.exists | default(false)
 
 - name: Set unseal keys fact
   ansible.builtin.set_fact:
-    vault_unseal_keys: "{{ unseal_keys_file.content | b64decode | from_yaml }}"
-  when: unseal_keys_file_stat.stat.exists
+    vault_unseal_keys: "{{ unseal_keys_file.content | b64decode | from_json }}"
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - unseal_keys_file_stat.stat.exists | default(false)
 
 - name: Check seal status
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/seal-status"
+    url: "{{ vault_local_api_url }}/v1/sys/seal-status"
     method: GET
+    validate_certs: false
     status_code: [200]
   register: vault_seal_status
+  when: vault_autounseal_provider != 'awskms'
 
 - name: Unseal Vault (step 1)
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/unseal"
+    url: "{{ vault_local_api_url }}/v1/sys/unseal"
     method: POST
+    validate_certs: false
     body_format: json
     body:
       key: "{{ vault_unseal_keys['keys'][0] }}"
     status_code: [200]
-  when: vault_seal_status.json.sealed and unseal_keys_file_stat.stat.exists
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - vault_seal_status.json.sealed | default(false)
+    - unseal_keys_file_stat.stat.exists | default(false)
 
 - name: Unseal Vault (step 2)
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/unseal"
+    url: "{{ vault_local_api_url }}/v1/sys/unseal"
     method: POST
+    validate_certs: false
     body_format: json
     body:
       key: "{{ vault_unseal_keys['keys'][1] }}"
     status_code: [200]
-  when: vault_seal_status.json.sealed and unseal_keys_file_stat.stat.exists
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - vault_seal_status.json.sealed | default(false)
+    - unseal_keys_file_stat.stat.exists | default(false)
 
 - name: Unseal Vault (step 3)
   ansible.builtin.uri:
-    url: "{{ vault_api_addr }}/v1/sys/unseal"
+    url: "{{ vault_local_api_url }}/v1/sys/unseal"
     method: POST
+    validate_certs: false
     body_format: json
     body:
       key: "{{ vault_unseal_keys['keys'][2] }}"
     status_code: [200]
   register: unseal_final
-  when: vault_seal_status.json.sealed and unseal_keys_file_stat.stat.exists
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - vault_seal_status.json.sealed | default(false)
+    - unseal_keys_file_stat.stat.exists | default(false)
 
 - name: Warning if unseal keys missing
   ansible.builtin.fail:
     msg:
-      - "ERROR: Vault is sealed but unseal keys file not found!"
-      - "Expected location: {{ vault_unseal_keys_dir }}/unseal_keys.json"
-      - "If this is a fresh install, the keys should have been created during initialization."
-      - "If Vault was previously initialized, restore the unseal keys from backup."
-  when: vault_seal_status.json.sealed and not unseal_keys_file_stat.stat.exists
+      - "ERROR: Vault is sealed but unseal keys file not found on the server!"
+      - "Expected location: {{ vault_unseal_keys_dir }}/unseal_keys_full.json"
+      - "Restore the unseal keys from your local backup before re-running."
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - vault_seal_status.json.sealed | default(false)
+    - not (unseal_keys_file_stat.stat.exists | default(false))
 
-- name: Verify Vault is unsealed
+- name: Verify Vault is unsealed (manual)
   ansible.builtin.debug:
     msg: "Vault is now unsealed and ready!"
-  when: unseal_final.json.sealed is defined and not unseal_final.json.sealed
+  when:
+    - vault_autounseal_provider != 'awskms'
+    - unseal_final.json.sealed is defined
+    - not unseal_final.json.sealed
+
+# Auto-unseal path — Vault unseals itself via KMS on startup
+- name: Verify Vault is unsealed (auto-unseal via KMS)
+  ansible.builtin.uri:
+    url: "{{ vault_local_api_url }}/v1/sys/seal-status"
+    method: GET
+    validate_certs: false
+    status_code: [200]
+  register: vault_seal_status_kms
+  until: not vault_seal_status_kms.json.sealed
+  retries: 6
+  delay: 5
+  when: vault_autounseal_provider == 'awskms'
+
+- name: Confirm auto-unseal success
+  ansible.builtin.debug:
+    msg: "Vault auto-unsealed via AWS KMS and ready!"
+  when: vault_autounseal_provider == 'awskms'

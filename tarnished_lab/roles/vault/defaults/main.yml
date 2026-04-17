@@ -1,36 +1,57 @@
-# Vault installation
-vault_version: "1.21.2"
-vault_architecture: "arm64"  # For Raspberry Pi (use "amd64" for x86)
+# --- Installation ---
+vault_version: "1.19.3"
+vault_architecture: "amd64"
 vault_user: "vault"
 vault_group: "vault"
 vault_bin_path: "/usr/local/bin/vault"
 vault_config_dir: "/etc/vault.d"
+vault_config_file: "{{ vault_config_dir }}/vault.hcl"
 vault_data_dir: "/opt/vault/data"
+vault_tls_dir: "{{ vault_config_dir }}/tls"
+vault_log_dir: "/var/log/vault"
 vault_systemd_unit: "/etc/systemd/system/vault.service"
 
-# Network configuration
-vault_node_id: "my-node"
-vault_listener_address: "127.0.0.1:8200"
-vault_cluster_address: "127.0.0.1:8201"
-vault_api_addr: "https://127.0.0.1:8200"
-vault_cluster_addr: "https://127.0.0.1:8201"
-vault_tls_disable: false  # Set to false if you want HTTPS
+# --- Network ---
+vault_node_id: "{{ inventory_hostname }}"
+vault_listener_address: "0.0.0.0:8200"
+vault_cluster_address: "0.0.0.0:8201"
+vault_api_addr: "https://vault.tarnishedlab:8200"
+vault_cluster_addr: "https://vault.tarnishedlab:8201"
+vault_local_api_url: "https://127.0.0.1:8200"
+vault_tls_disable: false
 
-# Initialization
-vault_init_file: "{{ vault_config_dir }}/.vault_init"
-vault_unseal_keys_dir: "{{ vault_config_dir }}/keys"
-vault_root_token_file: "{{ vault_config_dir }}/keys/root_token"
+# --- Initialization ---
+vault_unseal_keys_dir: "/opt/vault/keys"
+vault_root_token_file: "/opt/vault/keys/root_token"
 
-# PKI configuration
+# --- Auto-unseal AWS KMS ---
+# Set vault_autounseal_provider: "awskms" to enable.
+# Credentials must be stored in an ansible-vault encrypted file.
+vault_autounseal_provider: ""
+vault_awskms_region: "eu-west-1"
+vault_awskms_key_id: ""
+vault_aws_access_key_id: ""
+vault_aws_secret_access_key: ""
+
+# --- KV secrets engine ---
+vault_kv_enabled: true
+vault_kv_path: "secret"
+vault_kv_version: "2"
+
+# --- AppRole login (re-runs) ---
+# Set in host_vars/<host>/vault_secrets.yml (ansible-vault encrypted).
+# Created by the vault_policies role on first run.
+vault_approle_role_id: ""
+vault_approle_secret_id: ""
+
+# --- PKI (disabled) ---
 vault_pki_enabled: false
 vault_pki_path: "pki"
 vault_pki_int_path: "pki_int"
 vault_pki_ca_common_name: "Tarnished Lab Root CA"
 vault_pki_int_common_name: "Tarnished Lab Intermediate CA"
-vault_pki_max_lease_ttl: "87600h"  # 10 years
-vault_pki_int_max_lease_ttl: "43800h"  # 5 years
-
-# PKI Roles
+vault_pki_max_lease_ttl: "87600h"
+vault_pki_int_max_lease_ttl: "43800h"
 vault_pki_roles:
   - name: "openvpn-server"
     path: "{{ vault_pki_int_path }}"
@@ -42,8 +63,7 @@ vault_pki_roles:
     allow_ip_sans: true
     server_flag: true
     client_flag: false
-    max_ttl: "8760h"  # 1 year
-
+    max_ttl: "8760h"
   - name: "openvpn-client"
     path: "{{ vault_pki_int_path }}"
     allowed_domains:
@@ -53,9 +73,4 @@ vault_pki_roles:
     allow_ip_sans: false
     server_flag: false
     client_flag: true
-    max_ttl: "8760h"  # 1 year
-
-# KV configuration
-vault_kv_enabled: false
-vault_kv_path: "secret"
-vault_kv_version: 2
+    max_ttl: "8760h"
