@@ -19,6 +19,6 @@
     # - k3s
     # - argocd
     # - blog
-    - vault
-    - vault_policies
-
+    # - vault
+    # - vault_policies
+    - role: openclaw

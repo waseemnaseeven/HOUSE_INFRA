@@ -1,5 +1,5 @@
 ---
-- name: Local deployment for OpenClaw and n8n
+- name: Local deployment
   hosts: local
   become: false
   roles:
