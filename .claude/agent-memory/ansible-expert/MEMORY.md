@@ -1,2 +1,3 @@
 - [Vault Homelab Infrastructure](project_vault_infra.md) — Lightsail+Vault, token sharing entre rôles, sentinels idempotence, rôle vault_policies
 - [User Profile](user_profile.md) — homelab admin, préfère français, niveau Ansible intermédiaire-avancé
+- [OpenClaw Role Cross-Platform](project_openclaw_role.md) — macOS launchd + Debian/RPi/Linux systemd user, vars/ dispatch pattern, set_fact for openclaw_bin
