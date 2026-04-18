@@ -1,4 +1,5 @@
 .vscode
+.envrc
 
 # Vault secrets and backups (NEVER commit these!)
 tarnished_lab/vault-backup/
