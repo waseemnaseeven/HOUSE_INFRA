@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenClaw Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={{ openclaw_bin }} gateway --port {{ openclaw_port }} --force
+Restart=always
+RestartSec=5
+StandardOutput=append:{{ openclaw_log_dir }}/stdout.log
+StandardError=append:{{ openclaw_log_dir }}/stderr.log
+Environment=HOME={{ ansible_env.HOME }}
+Environment=OPENCLAW_CONFIG={{ openclaw_config_dir }}/openclaw.json
+
+[Install]
+WantedBy=default.target

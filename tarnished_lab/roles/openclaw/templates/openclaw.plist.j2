@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ openclaw_plist_label }}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ openclaw_bin }}</string>
+        <string>gateway</string>
+        <string>--port</string>
+        <string>{{ openclaw_port }}</string>
+        <string>--force</string>
+        <string>--force</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>{{ ansible_env.HOME }}</string>
+        <key>OPENCLAW_CONFIG</key>
+        <string>{{ openclaw_config_dir }}/openclaw.json</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>{{ openclaw_log_dir }}/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ openclaw_log_dir }}/stderr.log</string>
+</dict>
+</plist>

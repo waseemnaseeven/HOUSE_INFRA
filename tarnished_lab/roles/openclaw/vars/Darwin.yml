@@ -1,0 +1,6 @@
+---
+openclaw_config_dir: "{{ ansible_env.HOME }}/.openclaw"
+openclaw_workspace_dir: "{{ ansible_env.HOME }}/.openclaw/workspace"
+openclaw_log_dir: "{{ ansible_env.HOME }}/Library/Logs/openclaw"
+openclaw_plist_path: "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ openclaw_plist_label }}.plist"
+_openclaw_service_type: launchd

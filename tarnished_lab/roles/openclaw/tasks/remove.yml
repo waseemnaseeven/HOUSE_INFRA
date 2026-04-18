@@ -1,0 +1,6 @@
+---
+- ansible.builtin.include_tasks: remove_macos.yml
+  when: ansible_facts['os_family'] == 'Darwin'
+
+- ansible.builtin.include_tasks: remove_linux.yml
+  when: ansible_facts['os_family'] != 'Darwin'

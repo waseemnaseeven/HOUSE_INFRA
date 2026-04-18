@@ -1,0 +1,10 @@
+---
+- name: Load platform variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+  tags: always
+
+- ansible.builtin.import_tasks: install.yml
+  tags: [install, never]
+
+- ansible.builtin.import_tasks: remove.yml
+  tags: [remove, never]

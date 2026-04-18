@@ -1,0 +1,7 @@
+---
+openclaw_config_dir: "{{ ansible_env.HOME }}/.openclaw"
+openclaw_workspace_dir: "{{ ansible_env.HOME }}/.openclaw/workspace"
+openclaw_log_dir: "{{ ansible_env.HOME }}/.local/share/openclaw/logs"
+openclaw_systemd_unit_dir: "{{ ansible_env.HOME }}/.config/systemd/user"
+openclaw_service_name: openclaw-gateway
+_openclaw_service_type: systemd

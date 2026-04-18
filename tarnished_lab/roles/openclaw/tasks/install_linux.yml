@@ -1,0 +1,82 @@
+---
+- name: Install NodeSource GPG key
+  ansible.builtin.shell: |
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+      | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+  args:
+    creates: /usr/share/keyrings/nodesource.gpg
+  become: true
+
+- name: Add NodeSource Node.js 22 repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main"
+    state: present
+    filename: nodesource
+  become: true
+
+- name: Install Node.js 22
+  ansible.builtin.apt:
+    name: nodejs
+    state: latest
+    update_cache: true
+  become: true
+
+- name: Detect npm path
+  ansible.builtin.command: which npm
+  register: _npm
+  changed_when: false
+
+- name: Install openclaw globally via npm
+  community.general.npm:
+    name: openclaw
+    version: "{{ omit if openclaw_version == 'latest' else openclaw_version }}"
+    global: true
+    executable: "{{ _npm.stdout | trim }}"
+    state: present
+
+- name: Detect openclaw binary path
+  ansible.builtin.command: which openclaw
+  register: _openclaw_bin
+  changed_when: false
+
+- name: Set openclaw_bin fact
+  ansible.builtin.set_fact:
+    openclaw_bin: "{{ _openclaw_bin.stdout | trim }}"
+
+- name: Create openclaw directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+  loop:
+    - "{{ openclaw_config_dir }}"
+    - "{{ openclaw_workspace_dir }}"
+    - "{{ openclaw_log_dir }}"
+    - "{{ openclaw_systemd_unit_dir }}"
+
+- name: Deploy openclaw config
+  ansible.builtin.template:
+    src: openclaw.json.j2
+    dest: "{{ openclaw_config_dir }}/openclaw.json"
+    mode: "0600"
+  notify: Reload OpenClaw service
+
+- name: Deploy openclaw systemd user service unit
+  ansible.builtin.template:
+    src: openclaw.service.j2
+    dest: "{{ openclaw_systemd_unit_dir }}/{{ openclaw_service_name }}.service"
+    mode: "0644"
+  notify: Reload OpenClaw service
+
+- name: Enable systemd lingering for the current user
+  ansible.builtin.command: "loginctl enable-linger {{ ansible_user_id }}"
+  changed_when: true
+  become: true
+
+- name: Enable and start openclaw systemd user service
+  ansible.builtin.systemd:
+    name: "{{ openclaw_service_name }}"
+    state: started
+    enabled: true
+    scope: user
+    daemon_reload: true

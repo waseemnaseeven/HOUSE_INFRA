@@ -1,0 +1,18 @@
+---
+- name: Reload OpenClaw plist (macOS)
+  ansible.builtin.shell: |
+    launchctl bootout gui/$(id -u) "{{ openclaw_plist_path }}" 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) "{{ openclaw_plist_path }}"
+  when: ansible_facts['os_family'] == 'Darwin'
+  changed_when: true
+  listen: Reload OpenClaw service
+
+- name: Reload OpenClaw unit (Linux)
+  ansible.builtin.systemd:
+    name: "{{ openclaw_service_name }}"
+    state: restarted
+    scope: user
+    daemon_reload: true
+  when: ansible_facts['os_family'] != 'Darwin'
+  changed_when: true
+  listen: Reload OpenClaw service

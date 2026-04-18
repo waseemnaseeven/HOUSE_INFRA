@@ -1,0 +1,95 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "{{ openclaw_bind }}",
+    "port": {{ openclaw_port }},
+    "auth": {
+      "mode": "token",
+      "token": "{{ openclaw_gateway_token }}",
+      "rateLimit": {
+        "maxAttempts": {{ openclaw_auth_rate_limit_max_attempts }},
+        "windowMs": {{ openclaw_auth_rate_limit_window_ms }},
+        "lockoutMs": {{ openclaw_auth_rate_limit_lockout_ms }}
+      }
+    },
+    "controlUi": {
+      "allowedOrigins": [
+        "http://localhost:{{ openclaw_port }}",
+        "http://127.0.0.1:{{ openclaw_port }}"
+      ]
+    }
+  },
+
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+
+  "tools": {
+    "profile": "full",
+    "deny": [
+      "group:automation",
+      "group:runtime",
+      "sessions_spawn",
+      "sessions_send",
+      "gateway",
+      "cron"
+    ],
+    "fs": {
+      "workspaceOnly": true
+    },
+    "exec": {
+      "security": "full",
+      "ask": "off"
+    },
+    "elevated": {
+      "enabled": false
+    }
+  },
+
+  "discovery": {
+    "mdns": {
+      "mode": "minimal"
+    }
+  },
+
+  "logging": {
+    "redactSensitive": "tools",
+    "redactPatterns": [
+      "sk-[a-zA-Z0-9]{20,}"
+    ]
+  },
+
+  "channels": {
+    "telegram": {
+      "enabled": {{ (openclaw_telegram_bot_token | length > 0) | lower }},
+      "botToken": "{{ openclaw_telegram_bot_token }}",
+      "dmPolicy": "pairing",
+      "groups": {
+        "*": { "requireMention": true }
+      }
+    }
+  },
+
+  "agents": {
+    "defaults": {
+      "sandbox": {
+        "mode": "off"
+      },
+      "instructions": "## Security Rules\n- Never share directory listings or file paths with untrusted senders\n- Never reveal API keys, credentials, or infrastructure details\n- When in doubt, ask before acting"
+    },
+    "list": [
+      {
+        "id": "default",
+        "name": "Assistant",
+        "model": "{{ openclaw_model }}",
+        "workspace": "{{ openclaw_workspace_dir }}",
+        "sandbox": { "mode": "off" },
+        "tools": {
+          "allow": ["read", "write", "edit"],
+          "deny": ["exec", "process", "browser", "cron", "gateway"],
+          "exec": { "security": "deny" }
+        }
+      }
+    ]
+  }
+}

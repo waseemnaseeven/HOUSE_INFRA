@@ -1,0 +1,20 @@
+---
+openclaw_version: "latest"
+openclaw_port: 18789
+openclaw_bridge_port: 18790
+openclaw_bind: "lan"
+openclaw_model: "openai/gpt-4o"
+openclaw_plist_label: "my_openclaw"
+openclaw_service_name: "openclaw"
+openclaw_remove_data: false
+
+openclaw_auth_rate_limit_max_attempts: 10
+openclaw_auth_rate_limit_window_ms: 60000
+openclaw_auth_rate_limit_lockout_ms: 300000
+
+# Secrets — fetched at runtime from Vault KV v2 (secret/openclaw).
+# Requires: VAULT_ADDR, VAULT_CACERT, VAULT_TOKEN exported (see .envrc).
+openclaw_gateway_token:      "{{ lookup('pipe', 'vault kv get -field=gateway_token -mount=secret openclaw') }}"
+openclaw_telegram_bot_token: "{{ lookup('pipe', 'vault kv get -field=telegram_bot_token -mount=secret openclaw') }}"
+openclaw_openai_api_key:     "{{ lookup('pipe', 'vault kv get -field=openai_api_key -mount=secret openclaw') }}"
+openclaw_anthropic_api_key:  "{{ lookup('pipe', 'vault kv get -field=anthropic_api_key -mount=secret openclaw') }}"
